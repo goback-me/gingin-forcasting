@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: gingin-forecast-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gingin
+      POSTGRES_PASSWORD: gingin
+      POSTGRES_DB: gingin_forecast
+    ports:
+      - "5435:5432" # host port -- change if this is also taken; keep .env's DATABASE_URL in sync
+    volumes:
+      - gingin_forecast_data:/var/lib/postgresql/data
+
+volumes:
+  gingin_forecast_data:
+
+# --- Deploying to the VPS later? ---
+# Uncomment the two blocks below to join the same shared network your other
+# Compose projects (n8n, Traefik) sit on, so Traefik can route to this app
+# by container name instead of a host port. Only do this on the VPS, where
+# `root_default` already exists (created by whichever Compose project came
+# up first) -- it doesn't exist on a local dev machine, which is why it's
+# off by default here.
+#
+#   services:
+#     db:
+#       networks:
+#         - root_default
+#   networks:
+#     root_default:
+#       external: true

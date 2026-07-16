@@ -1,0 +1,69 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: gingin-forecast-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gingin
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: gingin_forecast
+    volumes:
+      - gingin_forecast_data:/var/lib/postgresql/data
+    networks:
+      - root_default
+    # No "ports:" here on purpose -- Postgres only needs to be reachable
+    # from the app container over the shared network, not from the host.
+
+  app:
+    build:
+      context: .
+      target: runner
+    container_name: gingin-forecast-app
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://gingin:${DB_PASSWORD}@db:5432/gingin_forecast
+      SOURCE_REF: ${SOURCE_REF:-./data/orders-with-dates.xlsx}
+      MONTHLY_SOURCE_REF: ${MONTHLY_SOURCE_REF:-./data/quarter-sales.xls}
+    volumes:
+      - ./data:/app/data
+    networks:
+      - root_default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gingin-forecast.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.gingin-forecast.entrypoints=websecure"
+      - "traefik.http.routers.gingin-forecast.tls.certresolver=letsencrypt"
+      - "traefik.http.services.gingin-forecast.loadbalancer.server.port=3000"
+      # ^ Check these against whatever entrypoint/certresolver names your
+      # existing Traefik setup actually uses (e.g. the labels on your Revvy
+      # tracker's Compose file) -- "websecure"/"letsencrypt" are the common
+      # defaults but yours may be named differently.
+
+  # One-off tasks (migrations, re-imports) run through the full `builder`
+  # stage, which still has the Prisma CLI and dev tooling -- the `app`
+  # service above is deliberately the slim runtime-only image and doesn't
+  # carry those. Usage:
+  #   docker compose -f docker-compose.prod.yml run --rm migrate npx prisma migrate deploy
+  #   docker compose -f docker-compose.prod.yml run --rm migrate npm run import
+  migrate:
+    build:
+      context: .
+      target: builder
+    environment:
+      DATABASE_URL: postgresql://gingin:${DB_PASSWORD}@db:5432/gingin_forecast
+      SOURCE_REF: ${SOURCE_REF:-./data/orders-with-dates.xlsx}
+      MONTHLY_SOURCE_REF: ${MONTHLY_SOURCE_REF:-./data/quarter-sales.xls}
+    volumes:
+      - ./data:/app/data
+    networks:
+      - root_default
+    profiles: ["tools"] # excluded from a normal `docker compose up`
+
+networks:
+  root_default:
+    external: true
+
+volumes:
+  gingin_forecast_data:

@@ -1,0 +1,82 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// One row per product per month, straight from a monthly sales report
+// (e.g. a "quarter sales" export with one sheet per month). Coarser than
+// OrderItem -- no per-order date, no weight -- but this is the shape the
+// real data currently comes in, so the forecast has to work with it.
+model MonthlySales {
+  id          String   @id @default(cuid())
+  month       String // "YYYY-MM"
+  monthLabel  String // "April 2026" -- for display
+  isPartial   Boolean  @default(false) // true if the source range doesn't cover the full month (i.e. this is the current month "to date")
+  productName String
+  sku         String?
+  itemsSold   Int
+  revenue     Float?
+  orders      Int?
+  variations  Int?
+  importedAt  DateTime @default(now())
+
+  @@unique([month, productName])
+  @@index([productName])
+}
+
+// One row per source order (header-level)
+model Order {
+  id         String      @id @default(cuid())
+  externalId String      @unique // Order ID / Order Number from the source system
+  orderDate  DateTime
+  status     String?
+  channel    String? // e.g. "Direct", "Shopify", "WooCommerce"
+  items      OrderItem[]
+  createdAt  DateTime    @default(now())
+
+  @@index([orderDate])
+}
+
+// One row per product line inside an order
+model OrderItem {
+  id          String   @id @default(cuid())
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId     String
+  productName String
+  sku         String?
+  category    String?
+  quantity    Float
+  weightG     Float?
+  itemCost    Float?
+
+  @@index([productName])
+  @@index([sku])
+}
+
+// Drives which columns render on the forecast table, in what order, and how
+// they're formatted -- editable via the /api/columns endpoint without a code change.
+model DashboardColumn {
+  id        String   @id @default(cuid())
+  key       String   @unique // must match a field name returned by the forecast calculator
+  label     String
+  type      String // "text" | "number" | "kg" | "percent" | "badge"
+  sortOrder Int
+  visible   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+// Audit trail of every data import, whatever the source
+model ImportLog {
+  id         String   @id @default(cuid())
+  sourceType String // "csv_file" | "csv_url" | "google_sheets"
+  sourceRef  String? // file path or URL, for traceability
+  rowCount   Int
+  status     String // "success" | "partial" | "failed"
+  message    String?
+  importedAt DateTime @default(now())
+}

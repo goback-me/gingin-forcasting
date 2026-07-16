@@ -1,0 +1,13 @@
+node_modules
+.next
+.env
+*.log
+
+# Real business/customer data never belongs in git -- upload directly to
+# the server instead (see DEPLOY.md). Keep the folder itself tracked via
+# .gitkeep, and keep required_columns_template.csv (it's just a template,
+# not real data).
+data/*.xlsx
+data/*.xls
+data/*.csv
+!data/required_columns_template.csv
