@@ -57,6 +57,7 @@ services:
       MONTHLY_SOURCE_REF: ${MONTHLY_SOURCE_REF:-./data/quarter-sales.xls}
     volumes:
       - ./data:/app/data
+      - ./prisma:/app/prisma
     networks:
       - root_default
     profiles: ["tools"] # excluded from a normal `docker compose up`
