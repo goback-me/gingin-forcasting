@@ -33,13 +33,10 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.gingin-forecast.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.gingin-forecast.entrypoints=websecure"
-      - "traefik.http.routers.gingin-forecast.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.gingin-forecast.entrypoints=web,websecure"
+      - "traefik.http.routers.gingin-forecast.tls=true"
+      - "traefik.http.routers.gingin-forecast.tls.certresolver=mytlschallenge"
       - "traefik.http.services.gingin-forecast.loadbalancer.server.port=3000"
-      # ^ Check these against whatever entrypoint/certresolver names your
-      # existing Traefik setup actually uses (e.g. the labels on your Revvy
-      # tracker's Compose file) -- "websecure"/"letsencrypt" are the common
-      # defaults but yours may be named differently.
 
   # One-off tasks (migrations, re-imports) run through the full `builder`
   # stage, which still has the Prisma CLI and dev tooling -- the `app`
