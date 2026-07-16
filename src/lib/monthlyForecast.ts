@@ -35,6 +35,12 @@ export interface MonthlyProductForecast {
   thisWeekExampleQty: number;
   thisWeekExampleKg: number | null;
 
+  // Same caveat as above, but for next week specifically -- next month's
+  // recommendation (which already accounts for the growth trend) spread
+  // across a week, rather than just repeating last month's flat average.
+  nextWeekEstimateQty: number;
+  nextWeekEstimateKg: number | null;
+
   recQtyNextMonth: number;
   recKgNextMonth: number | null;
 
@@ -130,6 +136,7 @@ export async function computeMonthlyForecast(
 
     const scenarioAdjusted = lastMonthQty * growthFactor * demandMult * promoMult * (1 + buffer);
     const recQtyNextMonth = Math.round(scenarioAdjusted);
+    const nextWeekEstimateQty = Math.round(recQtyNextMonth / 4.33);
 
     products.push({
       name,
@@ -148,6 +155,8 @@ export async function computeMonthlyForecast(
       growthPct,
       thisWeekExampleQty,
       thisWeekExampleKg: toKg(thisWeekExampleQty),
+      nextWeekEstimateQty,
+      nextWeekEstimateKg: toKg(nextWeekEstimateQty),
       recQtyNextMonth,
       recKgNextMonth: toKg(recQtyNextMonth),
       status: statusFor(productRows.length, growthPct),

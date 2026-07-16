@@ -8,8 +8,9 @@ export const DEFAULT_COLUMNS = [
   { key: "thisMonthKg", label: "This month (so far)", type: "kg", sortOrder: 4 },
   { key: "growthPct", label: "Growth (month on month)", type: "percent", sortOrder: 5 },
   { key: "thisWeekExampleKg", label: "This week (example)", type: "kg", sortOrder: 6 },
-  { key: "recKgNextMonth", label: "Recommended for next month", type: "kg", sortOrder: 7 },
-  { key: "status", label: "Status", type: "badge", sortOrder: 8 },
+  { key: "nextWeekEstimateKg", label: "Next week (estimate)", type: "kg", sortOrder: 7 },
+  { key: "recKgNextMonth", label: "Recommended for next month", type: "kg", sortOrder: 8 },
+  { key: "status", label: "Status", type: "badge", sortOrder: 9 },
 ];
 
 const DEPRECATED_KEYS = [

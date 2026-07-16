@@ -18,6 +18,8 @@ type Product = {
   growthPct: number;
   thisWeekExampleQty: number;
   thisWeekExampleKg: number | null;
+  nextWeekEstimateQty: number;
+  nextWeekEstimateKg: number | null;
   recQtyNextMonth: number;
   recKgNextMonth: number | null;
   status: string;
@@ -27,15 +29,25 @@ type Column = { key: string; label: string; type: string; visible: boolean; sort
 type MonthInfo = { month: string; label: string; isPartial: boolean };
 
 const COLUMN_WIDTH: Record<string, string> = {
-  name: "20%",
-  category: "13%",
-  twoMonthsAgoKg: "10%",
-  lastMonthKg: "10%",
-  thisMonthKg: "11%",
-  growthPct: "10%",
-  thisWeekExampleKg: "11%",
-  recKgNextMonth: "13%",
-  status: "10%",
+  name: "18%",
+  category: "11%",
+  twoMonthsAgoKg: "9%",
+  lastMonthKg: "9%",
+  thisMonthKg: "10%",
+  growthPct: "9%",
+  thisWeekExampleKg: "10%",
+  nextWeekEstimateKg: "10%",
+  recKgNextMonth: "12%",
+  status: "9%",
+};
+
+const KG_TO_QTY: Record<string, string> = {
+  twoMonthsAgoKg: "twoMonthsAgoQty",
+  lastMonthKg: "lastMonthQty",
+  thisMonthKg: "thisMonthQty",
+  thisWeekExampleKg: "thisWeekExampleQty",
+  nextWeekEstimateKg: "nextWeekEstimateQty",
+  recKgNextMonth: "recQtyNextMonth",
 };
 
 const GLOSSARY: { key: string; term: string; explanation: string }[] = [
@@ -44,6 +56,7 @@ const GLOSSARY: { key: string; term: string; explanation: string }[] = [
   { key: "thisMonthKg", term: "This month (so far)", explanation: "Total sold in the current month up to the latest data available. Not a complete month, so don't compare it directly to the two columns above." },
   { key: "growthPct", term: "Growth (month on month)", explanation: "Compares last month's total to the month before it. Positive means sales are growing; negative means shrinking. This is what pushes next month's recommendation up or down." },
   { key: "thisWeekExampleKg", term: "This week (example)", explanation: "This is not real weekly data -- the source file only reports monthly totals. This column is last month's total spread evenly across a week, shown as a placeholder until real weekly sales data is available." },
+  { key: "nextWeekEstimateKg", term: "Next week (estimate)", explanation: "Also not real weekly data. This is next month's recommended total (which already accounts for the growth trend) spread evenly across a week -- a rough guide for the week immediately ahead, not a committed number." },
   { key: "recKgNextMonth", term: "Recommended for next month", explanation: "Last month's total, adjusted for the month-on-month growth trend, plus a safety buffer. This is the number to plan next month's production around." },
 ];
 
@@ -122,7 +135,12 @@ export default function ForecastPage() {
           {val}%
         </span>
       );
-    if (col.type === "kg") return val !== null && val !== undefined ? `${val} kg` : "—";
+    if (col.type === "kg") {
+      if (val !== null && val !== undefined) return `${val} kg`;
+      const qtyKey = KG_TO_QTY[col.key];
+      const qtyVal = qtyKey ? p[qtyKey] : undefined;
+      return qtyVal !== undefined ? `${qtyVal} units` : "—";
+    }
     if (col.key === "category")
       return (
         <span className="block truncate" title={val}>
@@ -309,11 +327,20 @@ function ProductDrawer({ product, onClose }: { product: Product; onClose: () => 
           <Stat label="Recommended for next month" value={fmtVal(product.recKgNextMonth, product.recQtyNextMonth)} tone="green" />
         </div>
 
-        <div className="bg-surface2 rounded-lg px-3.5 py-2.5 mb-4">
-          <div className="text-[11px] text-inkfaint mb-1">This week (example only)</div>
-          <div className="font-mono text-base">{fmtVal(product.thisWeekExampleKg, product.thisWeekExampleQty)}</div>
-          <div className="text-[11px] text-inkfaint mt-1.5">
-            Not real weekly data — last month's total divided evenly across a week, shown as a placeholder.
+        <div className="grid grid-cols-2 gap-2.5 mb-4">
+          <div className="bg-surface2 rounded-lg px-3.5 py-2.5">
+            <div className="text-[11px] text-inkfaint mb-1">This week (example only)</div>
+            <div className="font-mono text-base">{fmtVal(product.thisWeekExampleKg, product.thisWeekExampleQty)}</div>
+            <div className="text-[10.5px] text-inkfaint mt-1.5">
+              Not real weekly data — last month spread evenly across a week.
+            </div>
+          </div>
+          <div className="bg-surface2 rounded-lg px-3.5 py-2.5">
+            <div className="text-[11px] text-inkfaint mb-1">Next week (estimate only)</div>
+            <div className="font-mono text-base">{fmtVal(product.nextWeekEstimateKg, product.nextWeekEstimateQty)}</div>
+            <div className="text-[10.5px] text-inkfaint mt-1.5">
+              Also not real weekly data — next month's trend-adjusted number spread across a week.
+            </div>
           </div>
         </div>
 
