@@ -16,17 +16,32 @@ export default async function OverviewPage() {
   const top10 = [...products]
     .sort((a, b) => (b.recKgNextMonth ?? b.recQtyNextMonth) - (a.recKgNextMonth ?? a.recQtyNextMonth))
     .slice(0, 10)
-    .map((p) => ({ label: p.name, value: p.recKgNextMonth ?? p.recQtyNextMonth }));
+    .map((p) => ({
+      label: p.name,
+      value: p.recKgNextMonth ?? p.recQtyNextMonth,
+      unit: p.recKgNextMonth !== null ? "kg" : "units",
+    }));
 
-  const categoryTotals = new Map<string, number>();
+  // Summed per category using whichever unit that category's products
+  // actually have -- kg if every product there has a known weight,
+  // otherwise raw units. Mixing kg and unit counts in one sum would be
+  // silently wrong, so this keeps them separate rather than guessing.
+  const categoryTotals = new Map<string, { value: number; allKg: boolean }>();
   for (const p of products) {
-    const kg = p.recKgNextMonth ?? p.recQtyNextMonth;
-    categoryTotals.set(p.category, (categoryTotals.get(p.category) ?? 0) + kg);
+    const existing = categoryTotals.get(p.category) ?? { value: 0, allKg: true };
+    const hasKg = p.recKgNextMonth !== null;
+    existing.value += hasKg ? p.recKgNextMonth! : p.recQtyNextMonth;
+    existing.allKg = existing.allKg && hasKg;
+    categoryTotals.set(p.category, existing);
   }
   const categoryBars = Array.from(categoryTotals.entries())
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => b[1].value - a[1].value)
     .slice(0, 8)
-    .map(([label, value]) => ({ label, value: Math.round(value) }));
+    .map(([label, { value, allKg }]) => ({
+      label,
+      value: Math.round(value),
+      unit: allKg ? "kg" : "units",
+    }));
 
   return (
     <div>

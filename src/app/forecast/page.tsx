@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import StatusBadge from "@/components/StatusBadge";
 
 type Product = {
@@ -73,6 +74,7 @@ export default function ForecastPage() {
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
   const [selected, setSelected] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openAlertProducts, setOpenAlertProducts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetch("/api/products")
@@ -83,6 +85,14 @@ export default function ForecastPage() {
         setMonths(data.monthsAvailable);
         setDataWarning(data.dataWarning);
         setLoading(false);
+      });
+    fetch("/api/plans/current")
+      .then((r) => r.json())
+      .then((data) => {
+        const open = data.plan.items
+          .filter((i: any) => i.alertStatus !== "ok" && i.decision === "pending")
+          .map((i: any) => i.productName);
+        setOpenAlertProducts(new Set(open));
       });
   }, []);
 
@@ -127,7 +137,24 @@ export default function ForecastPage() {
 
   function renderCell(p: any, col: Column) {
     const val = p[col.key];
-    if (col.type === "badge") return <StatusBadge status={val} />;
+    if (col.type === "badge") {
+      const hasOpenAlert = openAlertProducts.has(p.name);
+      return (
+        <span className="flex items-center gap-1.5">
+          <StatusBadge status={val} />
+          {hasOpenAlert && (
+            <Link
+              href={`/review?product=${encodeURIComponent(p.name)}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-[11px] text-brick-strong underline-offset-2 hover:underline whitespace-nowrap"
+              title="This product has an open alert needing review"
+            >
+              ● Review
+            </Link>
+          )}
+        </span>
+      );
+    }
     if (col.type === "percent")
       return (
         <span className={val >= 0 ? "text-green-strong" : "text-brick-strong"}>
@@ -243,7 +270,7 @@ export default function ForecastPage() {
                     <th
                       key={col.key}
                       onClick={() => toggleSort(col.key)}
-                      className="text-left px-2.5 py-2.5 text-inkfaint text-[11.5px] uppercase tracking-wide border-b border-borderstrong cursor-pointer hover:text-inksoft whitespace-nowrap overflow-hidden"
+                      className="text-left px-2.5 py-2.5 text-inkfaint text-[11.5px] uppercase tracking-wide border-b border-borderstrong cursor-pointer hover:text-inksoft leading-tight"
                     >
                       {col.label} {sortKey === col.key ? (sortDir === 1 ? "↑" : "↓") : ""}
                     </th>

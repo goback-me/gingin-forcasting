@@ -5,8 +5,10 @@ import { usePathname } from "next/navigation";
 const ITEMS = [
   { href: "/", label: "Overview" },
   { href: "/forecast", label: "Forecast table" },
+  { href: "/review", label: "This week's plan" },
   { href: "/scenario", label: "Scenario planning" },
   { href: "/alerts", label: "Alerts" },
+  { href: "/history", label: "Plan history" },
 ];
 
 export default function Sidebar() {
@@ -16,11 +18,11 @@ export default function Sidebar() {
     <div className="w-[220px] shrink-0 bg-green-strong text-green-50 px-4 py-6 flex flex-col gap-7">
       <div>
         <div className="font-display text-white text-lg">Gingin Forecast</div>
-        <div className="text-[11px] text-[#B9C7B2]">Weekly SOH planning</div>
+        <div className="text-[11px] text-[#B9C7B2]">Monthly demand planning</div>
       </div>
       <nav className="flex flex-col gap-0.5">
         {ITEMS.map((item) => {
-          const active = pathname === item.href;
+          const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}

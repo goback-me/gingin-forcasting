@@ -2,7 +2,7 @@ export default function BarList({
   items,
   color = "#3F6B4A",
 }: {
-  items: { label: string; value: number }[];
+  items: { label: string; value: number; unit?: string }[];
   color?: string;
 }) {
   const max = Math.max(...items.map((i) => i.value), 1);
@@ -12,7 +12,9 @@ export default function BarList({
         <div key={item.label}>
           <div className="flex justify-between text-[12.5px] mb-1">
             <span className="text-ink truncate pr-2">{item.label}</span>
-            <span className="font-mono text-inksoft shrink-0">{item.value.toLocaleString()}</span>
+            <span className="font-mono text-inksoft shrink-0">
+              {item.value.toLocaleString()} {item.unit ?? ""}
+            </span>
           </div>
           <div className="h-2 bg-surface2 rounded-full overflow-hidden">
             <div

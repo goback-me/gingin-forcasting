@@ -7,6 +7,63 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// One weekly review cycle. A plan is created (as "draft") from whatever
+// the forecast currently recommends, then someone works through it --
+// approving or overriding each product -- and locks it once done. Locking
+// doesn't stop new plans from being created for later weeks; it just
+// freezes this one as the historical record of what was actually decided.
+model ForecastPlan {
+  id        String     @id @default(cuid())
+  weekStart String // ISO date, the Monday this plan is for
+  status    String     @default("draft") // "draft" | "locked"
+  createdAt DateTime   @default(now())
+  lockedAt  DateTime?
+  lockedBy  String?
+  items     PlanItem[]
+
+  @@unique([weekStart])
+}
+
+// One product's line within a plan. Keeps the recommended number AND the
+// approved number as two separate fields on purpose -- that's the
+// before/after the review asked for, not an overwrite.
+model PlanItem {
+  id             String            @id @default(cuid())
+  plan           ForecastPlan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  planId         String
+  productName    String
+  category       String
+  recommendedQty Int
+  recommendedKg  Float?
+  approvedQty    Int?
+  approvedKg     Float?
+  decision       String            @default("pending") // "pending" | "approved" | "overridden"
+  alertStatus    String // "ok" | "declining" | "high_growth" | "low_data" -- snapshotted from the forecast when the plan was created
+  alertReason    String?
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  history        PlanItemHistory[]
+
+  @@unique([planId, productName])
+  @@index([productName])
+}
+
+// Every single action taken on a plan item, ever. This is the audit trail
+// -- nothing here is ever deleted or overwritten, only appended to.
+model PlanItemHistory {
+  id          String   @id @default(cuid())
+  planItem    PlanItem @relation(fields: [planItemId], references: [id], onDelete: Cascade)
+  planItemId  String
+  action      String // "approved" | "overridden" | "edited" | "reopened"
+  previousQty Int?
+  newQty      Int?
+  actor       String? // free-text name -- there's no login system, so whoever's reviewing types their name
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([planItemId])
+}
+
 // One row per product per month, straight from a monthly sales report
 // (e.g. a "quarter sales" export with one sheet per month). Coarser than
 // OrderItem -- no per-order date, no weight -- but this is the shape the
