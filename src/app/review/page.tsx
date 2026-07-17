@@ -40,7 +40,7 @@ function ReviewPageInner() {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
   const [actor, setActor] = useState("");
-  const [filter, setFilter] = useState<"all" | "pending" | "alerts">("alerts");
+  const [filter, setFilter] = useState<"all" | "pending" | "alerts">("all");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [overrideDrafts, setOverrideDrafts] = useState<Record<string, string>>({});
@@ -167,9 +167,9 @@ function ReviewPageInner() {
           value={filter}
           onChange={(e) => setFilter(e.target.value as any)}
         >
+          <option value="all">Everything</option>
           <option value="alerts">Needs review (open alerts)</option>
           <option value="pending">All pending</option>
-          <option value="all">Everything</option>
         </select>
       </div>
 

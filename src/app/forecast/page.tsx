@@ -30,15 +30,15 @@ type Column = { key: string; label: string; type: string; visible: boolean; sort
 type MonthInfo = { month: string; label: string; isPartial: boolean };
 
 const COLUMN_WIDTH: Record<string, string> = {
-  name: "18%",
-  category: "11%",
-  twoMonthsAgoKg: "9%",
-  lastMonthKg: "9%",
-  thisMonthKg: "10%",
-  growthPct: "9%",
-  thisWeekExampleKg: "10%",
-  nextWeekEstimateKg: "10%",
-  recKgNextMonth: "12%",
+  name: "16%",
+  category: "10%",
+  twoMonthsAgoKg: "8%",
+  lastMonthKg: "8%",
+  thisMonthKg: "9%",
+  growthPct: "8%",
+  thisWeekExampleKg: "9%",
+  nextWeekEstimateKg: "9%",
+  recKgNextMonth: "19%",
   status: "9%",
 };
 
@@ -75,6 +75,7 @@ export default function ForecastPage() {
   const [selected, setSelected] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [openAlertProducts, setOpenAlertProducts] = useState<Set<string>>(new Set());
+  const [overrides, setOverrides] = useState<Record<string, { approvedQty: number; approvedKg: number | null }>>({});
 
   useEffect(() => {
     fetch("/api/products")
@@ -93,6 +94,14 @@ export default function ForecastPage() {
           .filter((i: any) => i.alertStatus !== "ok" && i.decision === "pending")
           .map((i: any) => i.productName);
         setOpenAlertProducts(new Set(open));
+
+        const overrideMap: Record<string, { approvedQty: number; approvedKg: number | null }> = {};
+        for (const i of data.plan.items) {
+          if (i.decision === "overridden") {
+            overrideMap[i.productName] = { approvedQty: i.approvedQty, approvedKg: i.approvedKg };
+          }
+        }
+        setOverrides(overrideMap);
       });
   }, []);
 
@@ -137,21 +146,39 @@ export default function ForecastPage() {
 
   function renderCell(p: any, col: Column) {
     const val = p[col.key];
+
+    // For the recommended-next-month column, if this product has been
+    // overridden in the current plan, show the real decision instead of
+    // the stale live-calculated number -- that's the whole point of the
+    // override otherwise being invisible outside the Plan History page.
+    if (col.key === "recKgNextMonth" && overrides[p.name]) {
+      const o = overrides[p.name];
+      const originalLabel = val !== null && val !== undefined ? `${val} kg` : `${p.recQtyNextMonth} units`;
+      const overriddenLabel = o.approvedKg !== null ? `${o.approvedKg} kg` : `${o.approvedQty} units`;
+      return (
+        <span className="whitespace-nowrap">
+          <span className="line-through text-inkfaint text-[12px] mr-1.5">{originalLabel}</span>
+          <span className="text-amber-strong font-medium">{overriddenLabel}</span>
+          <span className="badge badge-high_growth ml-1.5">overridden</span>
+        </span>
+      );
+    }
+
     if (col.type === "badge") {
       const hasOpenAlert = openAlertProducts.has(p.name);
       return (
         <span className="flex items-center gap-1.5">
           <StatusBadge status={val} />
-          {hasOpenAlert && (
-            <Link
-              href={`/review?product=${encodeURIComponent(p.name)}`}
-              onClick={(e) => e.stopPropagation()}
-              className="text-[11px] text-brick-strong underline-offset-2 hover:underline whitespace-nowrap"
-              title="This product has an open alert needing review"
-            >
-              ● Review
-            </Link>
-          )}
+          <Link
+            href={`/review?product=${encodeURIComponent(p.name)}`}
+            onClick={(e) => e.stopPropagation()}
+            className={`text-[11px] underline-offset-2 hover:underline whitespace-nowrap ${
+              hasOpenAlert ? "text-brick-strong" : "text-inkfaint"
+            }`}
+            title={hasOpenAlert ? "This product has an open alert needing review" : "Review or override this product"}
+          >
+            {hasOpenAlert ? "● Review" : "Review"}
+          </Link>
         </span>
       );
     }
