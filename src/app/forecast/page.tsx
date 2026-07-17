@@ -31,15 +31,15 @@ type MonthInfo = { month: string; label: string; isPartial: boolean };
 
 const COLUMN_WIDTH: Record<string, string> = {
   name: "16%",
-  category: "10%",
+  category: "9%",
   twoMonthsAgoKg: "8%",
   lastMonthKg: "8%",
   thisMonthKg: "9%",
   growthPct: "8%",
   thisWeekExampleKg: "9%",
   nextWeekEstimateKg: "9%",
-  recKgNextMonth: "19%",
-  status: "9%",
+  recKgNextMonth: "18%",
+  status: "10%",
 };
 
 const KG_TO_QTY: Record<string, string> = {
@@ -167,12 +167,12 @@ export default function ForecastPage() {
     if (col.type === "badge") {
       const hasOpenAlert = openAlertProducts.has(p.name);
       return (
-        <span className="flex items-center gap-1.5">
+        <span className="flex flex-col items-start gap-0.5">
           <StatusBadge status={val} />
           <Link
             href={`/review?product=${encodeURIComponent(p.name)}`}
             onClick={(e) => e.stopPropagation()}
-            className={`text-[11px] underline-offset-2 hover:underline whitespace-nowrap ${
+            className={`text-[10.5px] underline-offset-2 hover:underline whitespace-nowrap ${
               hasOpenAlert ? "text-brick-strong" : "text-inkfaint"
             }`}
             title={hasOpenAlert ? "This product has an open alert needing review" : "Review or override this product"}
