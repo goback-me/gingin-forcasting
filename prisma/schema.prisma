@@ -64,6 +64,25 @@ model PlanItemHistory {
   @@index([planItemId])
 }
 
+// Real weekly sales data -- one row per product per ISO week, with actual
+// weight in kg already provided. This is a genuinely better data source
+// than MonthlySales: real week-over-week granularity means the forecast
+// no longer needs to guess/estimate a weekly figure from a monthly total.
+model WeeklySales {
+  id          String   @id @default(cuid())
+  weekStart   String // ISO date, the Monday of that week
+  weekLabel   String // e.g. "Week 11, 2026" -- for display
+  plu         String // the PLU code, e.g. "21" -- closest thing to a SKU in this source
+  productName String
+  weightKg    Float
+  units       Int
+  revenue     Float?
+  importedAt  DateTime @default(now())
+
+  @@unique([weekStart, plu])
+  @@index([productName])
+}
+
 // One row per product per month, straight from a monthly sales report
 // (e.g. a "quarter sales" export with one sheet per month). Coarser than
 // OrderItem -- no per-order date, no weight -- but this is the shape the

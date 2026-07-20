@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 const ITEMS = [
   { href: "/", label: "Overview" },
   { href: "/forecast", label: "Forecast table" },
+  { href: "/weekly", label: "Weekly forecast" },
   { href: "/review", label: "This week's plan" },
   { href: "/scenario", label: "Scenario planning" },
   { href: "/alerts", label: "Alerts" },

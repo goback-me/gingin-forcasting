@@ -8,6 +8,7 @@
     "start": "next start",
     "import": "tsx scripts/import.ts",
     "import:monthly": "tsx scripts/import-monthly.ts",
+    "import:weekly": "tsx scripts/import-weekly.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
