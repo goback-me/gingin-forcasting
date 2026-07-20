@@ -44,21 +44,6 @@ CREATE TABLE "PlanItemHistory" (
 );
 
 -- CreateTable
-CREATE TABLE "WeeklySales" (
-    "id" TEXT NOT NULL,
-    "weekStart" TEXT NOT NULL,
-    "weekLabel" TEXT NOT NULL,
-    "plu" TEXT NOT NULL,
-    "productName" TEXT NOT NULL,
-    "weightKg" DOUBLE PRECISION NOT NULL,
-    "units" INTEGER NOT NULL,
-    "revenue" DOUBLE PRECISION,
-    "importedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "WeeklySales_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "MonthlySales" (
     "id" TEXT NOT NULL,
     "month" TEXT NOT NULL,
@@ -138,12 +123,6 @@ CREATE UNIQUE INDEX "PlanItem_planId_productName_key" ON "PlanItem"("planId", "p
 
 -- CreateIndex
 CREATE INDEX "PlanItemHistory_planItemId_idx" ON "PlanItemHistory"("planItemId");
-
--- CreateIndex
-CREATE INDEX "WeeklySales_productName_idx" ON "WeeklySales"("productName");
-
--- CreateIndex
-CREATE UNIQUE INDEX "WeeklySales_weekStart_plu_key" ON "WeeklySales"("weekStart", "plu");
 
 -- CreateIndex
 CREATE INDEX "MonthlySales_productName_idx" ON "MonthlySales"("productName");
