@@ -43,10 +43,20 @@ Two things were built flexible on purpose, because you said the real data
 npm install
 cp .env.example .env
 docker compose up -d          # starts Postgres on localhost:5433
-npx prisma migrate dev --name init
-npm run import                # loads data/orders-with-dates.xlsx into Postgres
+npx prisma migrate deploy     # applies migrations already in prisma/migrations -- never generates new ones locally
+npm run import:monthly        # or import:weekly, depending which source you're testing against
 npm run dev                   # http://localhost:3000
 ```
+
+**Important: never run `npx prisma migrate dev` on a local machine for this project.**
+New migrations should only ever be generated directly against the VPS's real
+database (the actual source of truth), then committed and pushed from
+there. Running `migrate dev` locally generates a full competing migration
+history that collides with the VPS's when you push it -- this has broken
+a production deploy multiple times already. If your local schema and
+database fall out of sync, use `npx prisma migrate reset` instead --
+it wipes your *local* database and cleanly reapplies whatever migrations
+already exist in git, without ever creating new ones.
 
 ## Moving to real / live data
 

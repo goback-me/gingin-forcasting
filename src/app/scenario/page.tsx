@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 
-type ProductRow = { name: string; category: string; recKgNextMonth: number | null; recQtyNextMonth: number };
+type ProductRow = { name: string; category: string; recKgNextWeek: number; recUnitsNextWeek: number | null };
 
 export default function ScenarioPage() {
   const [demandPct, setDemandPct] = useState(0);
@@ -11,14 +11,14 @@ export default function ScenarioPage() {
   const [scenarioProducts, setScenarioProducts] = useState<ProductRow[]>([]);
 
   useEffect(() => {
-    fetch("/api/products?demandPct=0&promoPct=0&bufferPct=10")
+    fetch("/api/weekly-products?demandPct=0&promoPct=0&bufferPct=10")
       .then((r) => r.json())
       .then((data) => setBaselineProducts(data.products));
   }, []);
 
   useEffect(() => {
     const t = setTimeout(() => {
-      fetch(`/api/products?demandPct=${demandPct}&promoPct=${promoPct}&bufferPct=${bufferPct}`)
+      fetch(`/api/weekly-products?demandPct=${demandPct}&promoPct=${promoPct}&bufferPct=${bufferPct}`)
         .then((r) => r.json())
         .then((data) => setScenarioProducts(data.products));
     }, 250);
@@ -49,7 +49,7 @@ export default function ScenarioPage() {
     <div>
       <div className="font-display text-[26px] mb-1">Scenario planning</div>
       <div className="text-inksoft text-[13.5px] mb-6">
-        Test how next month's total recommended stock would change under different conditions. This is a
+        Test how next week's total recommended stock would change under different conditions. This is a
         sandbox — it doesn't touch the saved forecast.
       </div>
 
@@ -105,7 +105,7 @@ export default function ScenarioPage() {
 }
 
 function valOf(p: ProductRow): number {
-  return p.recKgNextMonth ?? p.recQtyNextMonth ?? 0;
+  return p.recKgNextWeek ?? 0;
 }
 
 function totalKg(products: ProductRow[]): number {

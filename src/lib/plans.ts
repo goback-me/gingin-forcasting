@@ -1,10 +1,10 @@
 import { prisma } from "./db";
-import { computeMonthlyForecast } from "./monthlyForecast";
+import { computeWeeklyForecast } from "./weeklyForecast";
 import { getNextLockInfo } from "./lockSchedule";
 
 /**
  * Everything to do with the weekly review/approval workflow lives here.
- * The forecast engine (monthlyForecast.ts) only ever calculates numbers
+ * The forecast engine (weeklyForecast.ts) only ever calculates numbers
  * live -- nothing it produces is ever saved. This file is what actually
  * turns a calculated recommendation into a decision someone made, on a
  * specific date, that gets kept forever.
@@ -12,7 +12,14 @@ import { getNextLockInfo } from "./lockSchedule";
 
 /** Returns this week's plan, creating it from the current forecast if it
  *  doesn't exist yet. Safe to call repeatedly -- never recreates an
- *  existing plan, so approvals already made are never touched. */
+ *  existing plan that already has real items in it, so approvals already
+ *  made are never touched.
+ *
+ *  Self-repairs one specific situation: if a plan record exists but has
+ *  ZERO items (which happens if it got created before real data existed
+ *  -- e.g. during setup/deploy troubleshooting, when the forecast engine
+ *  had nothing to snapshot yet), it backfills that plan with real items
+ *  instead of leaving it permanently empty. */
 export async function getOrCreateCurrentPlan() {
   const { weekStart } = getNextLockInfo();
 
@@ -21,28 +28,35 @@ export async function getOrCreateCurrentPlan() {
     include: { items: { include: { history: { orderBy: { createdAt: "desc" } } } } },
   });
 
-  if (plan) return plan;
+  if (plan && (plan as any).items.length > 0) return plan;
 
-  const { products } = await computeMonthlyForecast();
+  const { products } = await computeWeeklyForecast();
 
-  plan = await prisma.forecastPlan.create({
-    data: {
-      weekStart,
-      items: {
-        create: products.map((p) => ({
-          productName: p.name,
-          category: p.category,
-          recommendedQty: p.recQtyNextMonth,
-          recommendedKg: p.recKgNextMonth,
-          alertStatus: p.status,
-          alertReason: reasonFor(p),
-        })),
-      },
-    },
+  const itemsData = products.map((p) => ({
+    productName: p.name,
+    category: p.category,
+    recommendedQty: p.recUnitsNextWeek ?? p.recKgNextWeek,
+    recommendedKg: p.recKgNextWeek,
+    alertStatus: p.status,
+    alertReason: reasonFor(p),
+  }));
+
+  if (plan) {
+    // Empty plan from before real data existed -- backfill it rather than
+    // leaving it stuck empty forever.
+    await prisma.planItem.createMany({ data: itemsData.map((d) => ({ ...d, planId: plan!.id })) });
+  } else {
+    plan = await prisma.forecastPlan.create({
+      data: { weekStart, items: { create: itemsData } },
+      include: { items: { include: { history: { orderBy: { createdAt: "desc" } } } } },
+    });
+    return plan;
+  }
+
+  return prisma.forecastPlan.findUnique({
+    where: { id: plan.id },
     include: { items: { include: { history: { orderBy: { createdAt: "desc" } } } } },
   });
-
-  return plan;
 }
 
 export async function listPlans() {
@@ -149,9 +163,9 @@ export async function lockPlan(planId: string, actor: string) {
   });
 }
 
-function reasonFor(p: { status: string; growthPct: number; totalOrders?: number }): string | null {
-  if (p.status === "declining") return `Sales down ${Math.abs(p.growthPct)}% month on month.`;
+function reasonFor(p: { status: string; growthPct: number }): string | null {
+  if (p.status === "declining") return `Sales down ${Math.abs(p.growthPct)}% over the last 4 weeks vs the 4 before.`;
   if (p.status === "high_growth") return `Sales up ${p.growthPct}% -- confirm supply can keep pace.`;
-  if (p.status === "low_data") return `Not enough monthly history to trust this forecast yet.`;
+  if (p.status === "low_data") return `Not enough weekly history yet to trust this forecast.`;
   return null;
 }
