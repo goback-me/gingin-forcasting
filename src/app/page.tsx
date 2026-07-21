@@ -1,10 +1,10 @@
-import { computeWeeklyForecast } from "@/lib/weeklyForecast";
+import { computeMonthlyForecast } from "@/lib/monthlyForecast";
 import BarList from "@/components/BarList";
 
 export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
-  const { products, weeksAvailable } = await computeWeeklyForecast();
+  const { products, monthsAvailable } = await computeMonthlyForecast();
 
   const marketProducts = products.filter((p) => p.channel === "Market");
   const onlineProducts = products.filter((p) => p.channel === "Online");
@@ -13,15 +13,15 @@ export default async function OverviewPage() {
     <div>
       <div className="font-display text-[26px] mb-1">Overview</div>
       <div className="text-inksoft text-[13.5px] mb-5 max-w-[720px]">
-        This tracks how much of each product Gingin sold week by week, and recommends how much to
-        prepare next week based on real sales trends -- not an estimate. Broken down by sales channel,
-        since market and online demand move differently.
+        This tracks how much of each product Gingin sold, combining real weekly sales data with the
+        monthly sales report, and recommends how much to prepare next week -- not an estimate where
+        real data exists. Broken down by sales channel, since market and online demand move differently.
       </div>
 
-      {weeksAvailable.length > 0 && (
+      {monthsAvailable.length > 0 && (
         <div className="text-[12.5px] text-inksoft mb-6">
-          {weeksAvailable.length} weeks of real sales data: {weeksAvailable[0]?.weekLabel} through{" "}
-          {weeksAvailable[weeksAvailable.length - 1]?.weekLabel}
+          {monthsAvailable.length} months of sales data: {monthsAvailable[0]?.label} through{" "}
+          {monthsAvailable[monthsAvailable.length - 1]?.label}
         </div>
       )}
 
@@ -34,9 +34,9 @@ export default async function OverviewPage() {
         <div className="font-display text-[15px] mb-2">Where to go next</div>
         <ul className="text-[13px] text-inksoft leading-relaxed list-disc pl-4 space-y-1">
           <li>
-            <span className="font-medium text-ink">Forecast table</span> — every product with its real
-            weekly sales history and the exact amount, in kg and units, to prepare next week. Filter by
-            Market or Online.
+            <span className="font-medium text-ink">Forecast table</span> — every product with its sales
+            history and the exact amount, in kg and units, to prepare next week. Filter by Market or
+            Online.
           </li>
           <li>
             <span className="font-medium text-ink">This week's plan</span> — go through each product,
@@ -48,7 +48,7 @@ export default async function OverviewPage() {
           </li>
           <li>
             <span className="font-medium text-ink">Alerts</span> — products that need a human decision:
-            declining trend, sudden spike, or not enough weekly history yet.
+            declining trend, sudden spike, or not enough history yet.
           </li>
         </ul>
       </div>
@@ -65,13 +65,13 @@ function ChannelSection({ title, products }: { title: string; products: any[] })
       : 0;
 
   const top10 = [...products]
-    .sort((a, b) => b.recKgNextWeek - a.recKgNextWeek)
+    .sort((a, b) => b.nextWeekEstimateKg - a.nextWeekEstimateKg)
     .slice(0, 10)
-    .map((p) => ({ label: p.name, value: p.recKgNextWeek, unit: "kg" }));
+    .map((p) => ({ label: p.name, value: p.nextWeekEstimateKg ?? p.nextWeekEstimateQty, unit: p.nextWeekEstimateKg !== null ? "kg" : "units" }));
 
   const categoryTotals = new Map<string, number>();
   for (const p of products) {
-    categoryTotals.set(p.category, (categoryTotals.get(p.category) ?? 0) + p.recKgNextWeek);
+    categoryTotals.set(p.category, (categoryTotals.get(p.category) ?? 0) + (p.nextWeekEstimateKg ?? p.nextWeekEstimateQty));
   }
   const categoryBars = Array.from(categoryTotals.entries())
     .sort((a, b) => b[1] - a[1])
@@ -85,7 +85,7 @@ function ChannelSection({ title, products }: { title: string; products: any[] })
       <div className="grid grid-cols-3 gap-2.5 mb-4">
         <Kpi label="Products" value={totalSkus.toString()} />
         <Kpi
-          label="Growth (4wk)"
+          label="Growth"
           value={`${avgGrowth > 0 ? "+" : ""}${avgGrowth}%`}
           tone={avgGrowth >= 0 ? "green" : "brick"}
         />

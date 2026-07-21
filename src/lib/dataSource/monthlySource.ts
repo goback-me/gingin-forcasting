@@ -1,5 +1,7 @@
 import * as XLSX from "xlsx";
 import fs from "fs";
+import { classifyChannel, Channel } from "../channel";
+import { assignDummyMarket } from "../dummyMarket";
 
 export interface MonthlySalesRow {
   month: string; // "YYYY-MM"
@@ -7,6 +9,8 @@ export interface MonthlySalesRow {
   isPartial: boolean;
   productName: string;
   sku: string | null;
+  channel: Channel;
+  marketName: string | null;
   itemsSold: number;
   revenue: number | null;
   orders: number | null;
@@ -25,6 +29,8 @@ const HEADER_ALIASES: Record<string, string[]> = {
   revenue: ["N. Revenue", "Net Revenue", "Revenue", "revenue"],
   orders: ["Orders", "orders"],
   variations: ["Variations", "variations"],
+  // Optional -- this source has never had one, everything defaults to Market.
+  channel: ["Channel", "Sale Channel", "Source", "Order Type", "Market/Online"],
 };
 
 function resolveHeaders(sourceHeaders: string[]): Record<string, string | undefined> {
@@ -96,12 +102,17 @@ export function readMonthlySalesFile(filePath: string, assumedYear: number = new
       const itemsSold = Number(get(row, "itemsSold"));
       if (!Number.isFinite(itemsSold)) continue;
 
+      const channel = classifyChannel(get(row, "channel"));
+      const marketName = channel === "Market" ? assignDummyMarket(productName) : null;
+
       rows.push({
         month: parsed.month,
         monthLabel: parsed.monthLabel,
         isPartial: parsed.isPartial,
         productName,
         sku: strOrNull(get(row, "sku")),
+        channel,
+        marketName,
         itemsSold,
         revenue: numOrNull(get(row, "revenue")),
         orders: numOrNull(get(row, "orders")),

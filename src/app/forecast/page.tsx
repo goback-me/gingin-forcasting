@@ -4,63 +4,66 @@ import Link from "next/link";
 import StatusBadge from "@/components/StatusBadge";
 import ChannelBadge from "@/components/ChannelBadge";
 
-type WeekPoint = { weekStart: string; weekLabel: string; units: number; kg: number };
+type SeriesPoint = { weekStart: string; weekLabel: string; units: number; kg: number };
+
 type Product = {
   name: string;
-  plu: string;
+  sku: string | null;
+  plu: string | null;
   category: string;
   channel: "Market" | "Online";
   marketName: string | null;
-  series: WeekPoint[];
-  lastWeekKg: number;
-  lastWeekUnits: number;
-  lastWeekLabel: string;
-  priorWeekKg: number;
-  priorWeekUnits: number;
-  priorWeekLabel: string;
-  avgLast4Kg: number;
-  avgLast4Units: number;
-  avgPrior4Kg: number | null;
+  weightG: number | null;
+  series: SeriesPoint[];
+  dataSource: "weekly" | "monthly" | "both";
+  twoMonthsAgoQty: number;
+  twoMonthsAgoKg: number | null;
+  twoMonthsAgoLabel: string;
+  lastMonthQty: number;
+  lastMonthKg: number | null;
+  lastMonthLabel: string;
+  thisMonthQty: number;
+  thisMonthKg: number | null;
+  thisMonthLabel: string;
   growthPct: number;
-  avgWeightPerUnitKg: number | null;
-  recKgNextWeek: number;
-  recUnitsNextWeek: number | null;
-  recKgNextMonth: number;
-  recUnitsNextMonth: number | null;
+  thisWeekExampleQty: number;
+  thisWeekExampleKg: number | null;
+  thisWeekIsReal: boolean;
+  nextWeekEstimateQty: number;
+  nextWeekEstimateKg: number | null;
+  recQtyNextMonth: number;
+  recKgNextMonth: number | null;
   weeksOfHistory: number;
-  status: string;
+  monthsOfHistory: number;
+  status: "ok" | "declining" | "high_growth" | "low_data";
 };
 
-const GLOSSARY = [
-  { term: "Last week", explanation: "Actual kg (and units) sold in the most recent week of real data." },
-  { term: "4-week average", explanation: "Trailing 4-week average, smoothing out single-week noise -- this is the baseline the recommendation is built from." },
-  { term: "Growth (4wk trend)", explanation: "This 4-week average vs the 4 weeks before it. Positive means demand is growing; negative means it's easing off." },
-  { term: "kg per unit", explanation: "How much one pack/unit of this specific product actually weighs, on average -- calculated from its own real sales, not assumed." },
-  { term: "Recommended next week", explanation: "The 4-week average, adjusted for the growth trend, plus a safety buffer -- shown in both kg and units. Real, not an estimate." },
-];
+type Column = { key: string; label: string; type: string; sortOrder: number };
 
 export default function ForecastPage() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [weeksAvailable, setWeeksAvailable] = useState<{ weekStart: string; weekLabel: string }[]>([]);
+  const [columns, setColumns] = useState<Column[]>([]);
+  const [monthsAvailable, setMonthsAvailable] = useState<{ month: string; label: string; isPartial: boolean }[]>([]);
+  const [dataWarning, setDataWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showGlossary, setShowGlossary] = useState(true);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [channel, setChannel] = useState("");
   const [marketFilter, setMarketFilter] = useState("");
   const [status, setStatus] = useState("");
-  const [sortKey, setSortKey] = useState<keyof Product>("recKgNextWeek");
+  const [sortKey, setSortKey] = useState<string>("nextWeekEstimateKg");
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
   const [selected, setSelected] = useState<Product | null>(null);
   const [openAlertProducts, setOpenAlertProducts] = useState<Set<string>>(new Set());
-  const [overrides, setOverrides] = useState<Record<string, { approvedQty: number; approvedKg: number | null }>>({});
 
   useEffect(() => {
-    fetch("/api/weekly-products")
+    fetch("/api/products")
       .then((r) => r.json())
       .then((data) => {
         setProducts(data.products);
-        setWeeksAvailable(data.weeksAvailable);
+        setColumns(data.columns);
+        setMonthsAvailable(data.monthsAvailable);
+        setDataWarning(data.dataWarning);
         setLoading(false);
       });
     fetch("/api/plans/current")
@@ -68,16 +71,8 @@ export default function ForecastPage() {
       .then((data) => {
         const open = data.plan.items
           .filter((i: any) => i.alertStatus !== "ok" && i.decision === "pending")
-          .map((i: any) => i.productName);
+          .map((i: any) => `${i.productName}::${i.channel}`);
         setOpenAlertProducts(new Set(open));
-
-        const overrideMap: Record<string, { approvedQty: number; approvedKg: number | null }> = {};
-        for (const i of data.plan.items) {
-          if (i.decision === "overridden") {
-            overrideMap[i.productName] = { approvedQty: i.approvedQty, approvedKg: i.approvedKg };
-          }
-        }
-        setOverrides(overrideMap);
       });
   }, []);
 
@@ -91,16 +86,23 @@ export default function ForecastPage() {
     let list = products;
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter((p) => p.name.toLowerCase().includes(q) || p.plu.includes(q));
+      list = list.filter((p) => p.name.toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q));
     }
     if (category) list = list.filter((p) => p.category === category);
     if (channel) list = list.filter((p) => p.channel === channel);
     if (marketFilter) list = list.filter((p) => p.marketName === marketFilter);
     if (status) list = list.filter((p) => p.status === status);
-    return [...list].sort((a: any, b: any) => (b[sortKey] - a[sortKey]) * -sortDir);
+    return [...list].sort((a: any, b: any) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      if (typeof av === "string" || typeof bv === "string") {
+        return String(av ?? "").localeCompare(String(bv ?? "")) * -sortDir;
+      }
+      return ((bv ?? 0) - (av ?? 0)) * -sortDir;
+    });
   }, [products, search, category, channel, marketFilter, status, sortKey, sortDir]);
 
-  function toggleSort(key: keyof Product) {
+  function toggleSort(key: string) {
     if (sortKey === key) setSortDir((d) => (d === 1 ? -1 : 1) as 1 | -1);
     else {
       setSortKey(key);
@@ -109,59 +111,92 @@ export default function ForecastPage() {
   }
 
   function exportCsv() {
-    const header =
-      "Product,PLU,Category,Channel,Market,Last week (kg),Last week (units),4wk avg (kg),4wk avg (units),Growth %,kg per unit,Recommended next week (kg),Recommended next week (units),Status";
+    const header = "Product,SKU,Category,Channel,Market,2 months ago (kg),Last month (kg),This month (kg),Growth %,This week (kg),Next week (kg),Recommended next month (kg),Status";
     const rows = filtered.map(
       (p) =>
-        `"${p.name}",${p.plu},"${p.category}",${p.channel},${p.marketName ?? ""},${p.lastWeekKg},${p.lastWeekUnits},${p.avgLast4Kg},${p.avgLast4Units},${p.growthPct},${p.avgWeightPerUnitKg ?? ""},${p.recKgNextWeek},${p.recUnitsNextWeek ?? ""},${p.status}`
+        `"${p.name}",${p.sku ?? ""},"${p.category}",${p.channel},${p.marketName ?? ""},${p.twoMonthsAgoKg ?? ""},${p.lastMonthKg ?? ""},${p.thisMonthKg ?? ""},${p.growthPct},${p.thisWeekExampleKg ?? ""},${p.nextWeekEstimateKg ?? ""},${p.recKgNextMonth ?? ""},${p.status}`
     );
     const csv = [header, ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `production-plan-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `forecast-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function renderCell(p: Product, col: Column) {
+    const val = (p as any)[col.key];
+
+    if (col.key === "channel") return <ChannelBadge channel={p.channel} />;
+    if (col.key === "marketName") return <span className="text-inksoft">{p.marketName ?? "—"}</span>;
+
+    if (col.type === "badge" && col.key === "status") {
+      const hasOpenAlert = openAlertProducts.has(`${p.name}::${p.channel}`);
+      return (
+        <span className="flex items-center gap-1.5">
+          <StatusBadge status={val} />
+          {hasOpenAlert && (
+            <Link
+              href={`/review?product=${encodeURIComponent(p.name)}&channel=${p.channel}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-[11px] text-brick-strong underline-offset-2 hover:underline whitespace-nowrap"
+              title="This product has an open alert needing review"
+            >
+              ● Review
+            </Link>
+          )}
+        </span>
+      );
+    }
+
+    if (col.type === "percent")
+      return (
+        <span className={val >= 0 ? "text-green-strong" : "text-brick-strong"}>
+          {val > 0 ? "+" : ""}
+          {val}%
+        </span>
+      );
+
+    if (col.type === "kg") {
+      if (val === null || val === undefined) return <span className="text-inkfaint">—</span>;
+      const isEstimateCol = col.key === "thisWeekExampleKg" && !p.thisWeekIsReal;
+      return (
+        <span>
+          {val} kg
+          {isEstimateCol && <span className="text-[10px] text-inkfaint ml-1">(estimate)</span>}
+        </span>
+      );
+    }
+
+    return val ?? "—";
   }
 
   return (
     <div>
       <div className="font-display text-[26px] mb-1">Forecast table</div>
       <div className="text-inksoft text-[13.5px] mb-4">
-        Real week-by-week sales data -- no placeholders. For each product: what it sold, how the trend is
-        moving, and exactly how much to prepare next week, in both kg and units.
+        Every product, combining the monthly sales report with real weekly data where it exists. Filter
+        by channel to see Market or Online separately.
       </div>
 
-      {weeksAvailable.length > 0 && (
+      {monthsAvailable.length > 0 && (
         <div className="text-[12.5px] text-inksoft mb-4">
-          {weeksAvailable.length} weeks of data: {weeksAvailable[0]?.weekLabel} through{" "}
-          {weeksAvailable[weeksAvailable.length - 1]?.weekLabel}
+          {monthsAvailable.length} months of data: {monthsAvailable[0]?.label} through{" "}
+          {monthsAvailable[monthsAvailable.length - 1]?.label}
         </div>
       )}
 
-      <button
-        className="text-[12.5px] text-green-strong font-medium mb-3 underline-offset-2 hover:underline"
-        onClick={() => setShowGlossary((s) => !s)}
-      >
-        {showGlossary ? "Hide" : "Show"} — what do these numbers mean?
-      </button>
-      {showGlossary && (
-        <div className="bg-surface2 border border-border rounded-lg p-4 mb-5 grid grid-cols-2 gap-3">
-          {GLOSSARY.map((g) => (
-            <div key={g.term}>
-              <div className="text-[12.5px] font-medium text-ink">{g.term}</div>
-              <div className="text-[12px] text-inksoft leading-snug mt-0.5">{g.explanation}</div>
-            </div>
-          ))}
-        </div>
+      {dataWarning && (
+        <div className="bg-amber-soft text-amber-strong rounded-lg px-3.5 py-2.5 text-[12.5px] mb-4">{dataWarning}</div>
       )}
 
       <div className="bg-surface border border-border rounded-lg p-5">
         <div className="flex gap-2.5 mb-4 flex-wrap items-center">
           <input
             className="border border-borderstrong rounded-lg px-3 py-2 text-[13px] w-64"
-            placeholder="Search product or PLU…"
+            placeholder="Search product or SKU…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -182,7 +217,7 @@ export default function ForecastPage() {
             value={channel}
             onChange={(e) => {
               setChannel(e.target.value);
-              setMarketFilter(""); // market names only apply to Market rows -- clear if channel changes
+              setMarketFilter("");
             }}
           >
             <option value="">Market + Online</option>
@@ -218,7 +253,7 @@ export default function ForecastPage() {
             className="ml-auto bg-green-strong text-white rounded-lg px-4 py-2 text-[13px] font-medium hover:bg-green"
             onClick={exportCsv}
           >
-            Export production plan (CSV)
+            Export (CSV)
           </button>
         </div>
 
@@ -229,99 +264,31 @@ export default function ForecastPage() {
             <table className="w-full text-[13px] border-collapse">
               <thead>
                 <tr>
-                  {[
-                    ["name", "Product"],
-                    ["category", "Category"],
-                    ["channel", "Channel"],
-                    ["marketName", "Market"],
-                    ["lastWeekKg", "Last week"],
-                    ["avgLast4Kg", "4-week average"],
-                    ["growthPct", "Growth (4wk trend)"],
-                    ["avgWeightPerUnitKg", "kg per unit"],
-                    ["recKgNextWeek", "Recommended next week"],
-                    ["status", "Status"],
-                  ].map(([key, label]) => (
+                  {columns.map((col) => (
                     <th
-                      key={key}
-                      onClick={() => toggleSort(key as keyof Product)}
+                      key={col.key}
+                      onClick={() => toggleSort(col.key)}
                       className="text-left px-2.5 py-2.5 text-inkfaint text-[11.5px] uppercase tracking-wide border-b border-borderstrong cursor-pointer hover:text-inksoft leading-tight"
                     >
-                      {label} {sortKey === key ? (sortDir === 1 ? "↑" : "↓") : ""}
+                      {col.label} {sortKey === col.key ? (sortDir === 1 ? "↑" : "↓") : ""}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => {
-                  const override = overrides[p.name];
-                  const hasOpenAlert = openAlertProducts.has(p.name);
-                  return (
-                    <tr key={`${p.name}::${p.channel}`} onClick={() => setSelected(p)} className="cursor-pointer hover:bg-surface2 border-b border-border">
-                      <td className="px-2.5 py-2.5">{p.name}</td>
-                      <td className="px-2.5 py-2.5 text-inksoft">
-                        <span className="block truncate max-w-[140px]" title={p.category}>
-                          {p.category}
-                        </span>
+                {filtered.map((p) => (
+                  <tr
+                    key={`${p.name}::${p.channel}`}
+                    onClick={() => setSelected(p)}
+                    className="cursor-pointer hover:bg-surface2 border-b border-border"
+                  >
+                    {columns.map((col) => (
+                      <td key={col.key} className="px-2.5 py-2.5">
+                        {renderCell(p, col)}
                       </td>
-                      <td className="px-2.5 py-2.5">
-                        <ChannelBadge channel={p.channel} />
-                      </td>
-                      <td className="px-2.5 py-2.5 text-inksoft">{p.marketName ?? "—"}</td>
-                      <td className="px-2.5 py-2.5">
-                        {p.lastWeekKg} kg
-                        <div className="text-[11px] text-inkfaint">{p.lastWeekUnits} units</div>
-                      </td>
-                      <td className="px-2.5 py-2.5">
-                        {p.avgLast4Kg} kg
-                        <div className="text-[11px] text-inkfaint">{p.avgLast4Units} units</div>
-                      </td>
-                      <td className="px-2.5 py-2.5">
-                        <span className={p.growthPct >= 0 ? "text-green-strong" : "text-brick-strong"}>
-                          {p.growthPct > 0 ? "+" : ""}
-                          {p.growthPct}%
-                        </span>
-                      </td>
-                      <td className="px-2.5 py-2.5 text-inksoft">
-                        {p.avgWeightPerUnitKg !== null ? `${p.avgWeightPerUnitKg} kg` : "—"}
-                      </td>
-                      <td className="px-2.5 py-2.5 font-medium">
-                        {override ? (
-                          <span className="whitespace-nowrap">
-                            <span className="line-through text-inkfaint text-[12px] mr-1.5 font-normal">
-                              {p.recKgNextWeek} kg
-                            </span>
-                            <span className="text-amber-strong">
-                              {override.approvedKg !== null ? `${override.approvedKg} kg` : `${override.approvedQty} units`}
-                            </span>
-                            <span className="badge badge-high_growth ml-1.5">overridden</span>
-                          </span>
-                        ) : (
-                          <>
-                            {p.recKgNextWeek} kg
-                            <div className="text-[11px] text-inkfaint font-normal">
-                              {p.recUnitsNextWeek !== null ? `${p.recUnitsNextWeek} units` : "no unit data"}
-                            </div>
-                          </>
-                        )}
-                      </td>
-                      <td className="px-2.5 py-2.5">
-                        <span className="flex flex-col items-start gap-0.5">
-                          <StatusBadge status={p.status} />
-                          <Link
-                            href={`/review?product=${encodeURIComponent(p.name)}&channel=${p.channel}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className={`text-[10.5px] underline-offset-2 hover:underline whitespace-nowrap ${
-                              hasOpenAlert ? "text-brick-strong" : "text-inkfaint"
-                            }`}
-                            title={hasOpenAlert ? "This product has an open alert needing review" : "Review or override this product"}
-                          >
-                            {hasOpenAlert ? "● Review" : "Review"}
-                          </Link>
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                    ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -334,7 +301,9 @@ export default function ForecastPage() {
 }
 
 function ProductDrawer({ product, onClose }: { product: Product; onClose: () => void }) {
-  const maxKg = Math.max(...product.series.map((s) => s.kg), 1);
+  const hasWeekly = product.series.length > 0;
+  const maxKg = hasWeekly ? Math.max(...product.series.map((s) => s.kg), 1) : 1;
+
   return (
     <div className="fixed inset-0 bg-black/30 flex justify-end z-50" onClick={onClose}>
       <div className="w-[480px] max-w-[92vw] bg-surface p-7 overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -342,56 +311,71 @@ function ProductDrawer({ product, onClose }: { product: Product; onClose: () => 
           &times;
         </button>
         <div className="font-display text-xl mb-1">{product.name}</div>
-        <div className="text-inkfaint text-[11.5px] mb-5 flex items-center gap-2">
+        <div className="text-inkfaint text-[11.5px] mb-5 flex items-center gap-2 flex-wrap">
           <span>
-            {product.category} · PLU {product.plu} · {product.weeksOfHistory} weeks of history
-            {product.marketName && <> · {product.marketName}</>}
+            {product.category}
+            {product.sku && <> · SKU {product.sku}</>}
           </span>
           <ChannelBadge channel={product.channel} />
+          {product.marketName && <span className="text-[11px] text-inkfaint">{product.marketName}</span>}
         </div>
 
-        <div className="text-[12px] text-inkfaint mb-2 uppercase tracking-wide">Weekly sales (kg)</div>
-        <div className="flex items-end gap-1 h-32 mb-1">
-          {product.series.map((s) => (
-            <div key={s.weekStart} className="flex-1 flex flex-col items-center justify-end">
-              <div
-                className="w-full bg-green rounded-t"
-                style={{ height: `${(s.kg / maxKg) * 100}%`, minHeight: s.kg > 0 ? 3 : 0 }}
-                title={`${s.weekLabel}: ${s.kg} kg`}
-              />
+        {hasWeekly ? (
+          <>
+            <div className="text-[12px] text-inkfaint mb-2 uppercase tracking-wide">Weekly sales (kg)</div>
+            <div className="flex items-end gap-1 h-32 mb-1">
+              {product.series.map((s) => (
+                <div key={s.weekStart} className="flex-1 flex flex-col items-center justify-end">
+                  <div
+                    className="w-full bg-green rounded-t"
+                    style={{ height: `${(s.kg / maxKg) * 100}%`, minHeight: s.kg > 0 ? 3 : 0 }}
+                    title={`${s.weekLabel}: ${s.kg} kg`}
+                  />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <div className="text-[10.5px] text-inkfaint flex justify-between mb-5">
-          <span>{product.series[0]?.weekLabel}</span>
-          <span>{product.series[product.series.length - 1]?.weekLabel}</span>
-        </div>
+            <div className="text-[10.5px] text-inkfaint flex justify-between mb-5">
+              <span>{product.series[0]?.weekLabel}</span>
+              <span>{product.series[product.series.length - 1]?.weekLabel}</span>
+            </div>
+          </>
+        ) : (
+          <div className="bg-surface2 border border-border rounded-lg px-3.5 py-3 mb-5 text-[12.5px] text-inksoft">
+            No real weekly sales data for this product yet — numbers below come from the monthly report
+            only.
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-2.5 mb-3">
-          <Stat label="Last week" value={`${product.lastWeekKg} kg`} sub={`${product.lastWeekUnits} units`} />
-          <Stat label="Prior week" value={`${product.priorWeekKg} kg`} sub={`${product.priorWeekUnits} units`} />
+          <Stat label="2 months ago" value={product.twoMonthsAgoKg !== null ? `${product.twoMonthsAgoKg} kg` : "—"} sub={product.twoMonthsAgoLabel} />
+          <Stat label="Last month" value={product.lastMonthKg !== null ? `${product.lastMonthKg} kg` : "—"} sub={product.lastMonthLabel} />
+          <Stat label="This month" value={product.thisMonthKg !== null ? `${product.thisMonthKg} kg` : "—"} sub={product.thisMonthLabel} />
           <Stat
-            label="Growth (4wk trend)"
+            label="Growth"
             value={`${product.growthPct > 0 ? "+" : ""}${product.growthPct}%`}
             tone={product.growthPct >= 0 ? "green" : "brick"}
           />
-          <Stat
-            label="kg per unit"
-            value={product.avgWeightPerUnitKg !== null ? `${product.avgWeightPerUnitKg} kg` : "—"}
-            sub="from this product's own history"
-          />
         </div>
-        <div className="bg-green-soft rounded-lg px-3.5 py-3 mb-4">
-          <div className="text-[11px] text-green-strong/80 mb-1">Recommended next week</div>
-          <div className="font-display text-xl text-green-strong">{product.recKgNextWeek} kg</div>
-          <div className="text-[12.5px] text-green-strong/90 mt-0.5">
-            {product.recUnitsNextWeek !== null ? `≈ ${product.recUnitsNextWeek} units to prepare` : "no unit conversion available"}
+
+        <div className="bg-green-soft rounded-lg px-3.5 py-3 mb-3">
+          <div className="text-[11px] text-green-strong/80 mb-1">
+            {product.thisWeekIsReal ? "This week (real)" : "This week (estimate)"}
+          </div>
+          <div className="font-display text-lg text-green-strong">
+            {product.thisWeekExampleKg !== null ? `${product.thisWeekExampleKg} kg` : `${product.thisWeekExampleQty} units`}
           </div>
         </div>
+
+        <div className="bg-green-soft rounded-lg px-3.5 py-3 mb-4">
+          <div className="text-[11px] text-green-strong/80 mb-1">Recommended next week</div>
+          <div className="font-display text-xl text-green-strong">
+            {product.nextWeekEstimateKg !== null ? `${product.nextWeekEstimateKg} kg` : `${product.nextWeekEstimateQty} units`}
+          </div>
+        </div>
+
         <div className="text-[12px] text-inkfaint">
           Recommended for the month ahead:{" "}
-          <span className="font-mono">{product.recKgNextMonth} kg</span>
-          {product.recUnitsNextMonth !== null && <span className="font-mono"> ({product.recUnitsNextMonth} units)</span>}
+          <span className="font-mono">{product.recKgNextMonth !== null ? `${product.recKgNextMonth} kg` : `${product.recQtyNextMonth} units`}</span>
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { computeWeeklyForecast, WeeklyProductForecast } from "./weeklyForecast";
 
 type MonthlyRow = {
   month: string;
@@ -6,14 +7,25 @@ type MonthlyRow = {
   isPartial: boolean;
   productName: string;
   sku: string | null;
+  channel: string;
+  marketName: string | null;
   itemsSold: number;
 };
 
 export interface MonthlyProductForecast {
   name: string;
   sku: string | null;
+  plu: string | null;
   category: string;
+  channel: "Market" | "Online";
+  marketName: string | null;
   weightG: number | null;
+  series: { weekStart: string; weekLabel: string; units: number; kg: number }[];
+
+  // Which source(s) this row's numbers are built from -- "both" means the
+  // weekly numbers (more precise) are used for growth/recommendation,
+  // while the monthly columns below still come from the monthly report.
+  dataSource: "weekly" | "monthly" | "both";
 
   twoMonthsAgoQty: number;
   twoMonthsAgoKg: number | null;
@@ -27,30 +39,30 @@ export interface MonthlyProductForecast {
   thisMonthKg: number | null;
   thisMonthLabel: string;
 
-  growthPct: number; // last full month vs the one before it
+  growthPct: number; // weekly 4wk trend when available, else month-over-month
 
-  // Explicitly an assumption, not measured -- there's no daily/weekly data
-  // in this source. Derived as last month's total spread evenly across
-  // ~4.33 weeks. Labelled as an example everywhere it's shown.
+  // Real last week's numbers when weekly data exists for this product;
+  // otherwise a rough estimate (last month's total spread over ~4.33
+  // weeks) -- thisWeekIsReal tells the UI which one it's looking at.
   thisWeekExampleQty: number;
   thisWeekExampleKg: number | null;
+  thisWeekIsReal: boolean;
 
-  // Same caveat as above, but for next week specifically -- next month's
-  // recommendation (which already accounts for the growth trend) spread
-  // across a week, rather than just repeating last month's flat average.
   nextWeekEstimateQty: number;
   nextWeekEstimateKg: number | null;
 
   recQtyNextMonth: number;
   recKgNextMonth: number | null;
 
+  weeksOfHistory: number;
+  monthsOfHistory: number;
   status: "ok" | "declining" | "high_growth" | "low_data";
 }
 
 export interface MonthlyForecastResult {
   products: MonthlyProductForecast[];
   monthsAvailable: { month: string; label: string; isPartial: boolean }[];
-  dataWarning: string | null; // e.g. flags a suspiciously duplicated month
+  dataWarning: string | null;
 }
 
 function statusFor(monthsWithData: number, growthPct: number): MonthlyProductForecast["status"] {
@@ -78,15 +90,11 @@ export async function computeMonthlyForecast(
     return { month, label: row.monthLabel, isPartial: row.isPartial };
   });
 
-  // The "current" month is whichever one is flagged partial; if none is,
-  // fall back to the most recent month present.
   const currentMonth = monthsAvailable.find((m) => m.isPartial) ?? monthsAvailable[monthsAvailable.length - 1];
   const currentIdx = monthKeys.indexOf(currentMonth?.month ?? "");
   const lastMonthKey = currentIdx > 0 ? monthKeys[currentIdx - 1] : null;
   const twoMonthsAgoKey = currentIdx > 1 ? monthKeys[currentIdx - 2] : null;
 
-  // Data-quality guard: if two consecutive months are identical across the
-  // board, the export almost certainly wasn't refreshed.
   let dataWarning: string | null = null;
   if (lastMonthKey && currentMonth) {
     const lastTotal = rows.filter((r) => r.month === lastMonthKey).reduce((s, r) => s + r.itemsSold, 0);
@@ -98,30 +106,43 @@ export async function computeMonthlyForecast(
     }
   }
 
-  const byProduct = new Map<string, typeof rows>();
+  // Bucket monthly rows by product+channel
+  const byKey = new Map<string, MonthlyRow[]>();
   for (const row of rows) {
-    const list = byProduct.get(row.productName) ?? [];
+    const key = `${row.productName}::${row.channel}`;
+    const list = byKey.get(key) ?? [];
     list.push(row);
-    byProduct.set(row.productName, list);
+    byKey.set(key, list);
   }
 
+  // Pull the weekly engine's results and index by the same key
+  const { products: weeklyProducts } = await computeWeeklyForecast(levers);
+  const weeklyByKey = new Map<string, WeeklyProductForecast>();
+  for (const wp of weeklyProducts) {
+    weeklyByKey.set(`${wp.name}::${wp.channel}`, wp);
+  }
+
+  const allKeys = new Set<string>([...byKey.keys(), ...weeklyByKey.keys()]);
   const products: MonthlyProductForecast[] = [];
 
-  for (const [name, productRows] of byProduct) {
-    const qtyFor = (month: string | null) => (month ? productRows.find((r) => r.month === month)?.itemsSold ?? 0 : 0);
-    const skuFor = productRows.find((r) => r.sku)?.sku ?? null;
+  for (const key of allKeys) {
+    const monthlyRows = byKey.get(key);
+    const weekly = weeklyByKey.get(key);
+    const name = monthlyRows?.[0]?.productName ?? weekly!.name;
+    const channel = (monthlyRows?.[0]?.channel ?? weekly!.channel) as "Market" | "Online";
+    const marketName = monthlyRows?.[0]?.marketName ?? weekly?.marketName ?? null;
 
-    // Enrich from real per-order-line data if this product also appears
-    // there (from an earlier orders import) -- that's the only place
-    // weight and category actually live, since the monthly report has
-    // neither.
+    const qtyFor = (month: string | null) =>
+      month && monthlyRows ? monthlyRows.find((r) => r.month === month)?.itemsSold ?? 0 : 0;
+    const skuFor = monthlyRows?.find((r) => r.sku)?.sku ?? null;
+
     const enrichment = await prisma.orderItem.findFirst({
       where: { productName: name },
       select: { weightG: true, category: true },
       orderBy: { id: "desc" },
     });
     const weightG = enrichment?.weightG ?? null;
-    const category = enrichment?.category ?? "Uncategorised";
+    const category = weekly?.category ?? enrichment?.category ?? "Uncategorised";
 
     const twoMonthsAgoQty = qtyFor(twoMonthsAgoKey);
     const lastMonthQty = qtyFor(lastMonthKey);
@@ -129,20 +150,44 @@ export async function computeMonthlyForecast(
 
     const toKg = (qty: number) => (weightG ? round1((qty * weightG) / 1000) : null);
 
-    const growthPct = twoMonthsAgoQty > 0 ? round1((lastMonthQty / twoMonthsAgoQty - 1) * 100) : 0;
-    const growthFactor = 1 + growthPct / 100;
+    const monthlyGrowthPct = twoMonthsAgoQty > 0 ? round1((lastMonthQty / twoMonthsAgoQty - 1) * 100) : 0;
+    const monthlyGrowthFactor = 1 + monthlyGrowthPct / 100;
 
-    const thisWeekExampleQty = Math.round(lastMonthQty / 4.33);
+    const monthlyThisWeekExampleQty = Math.round(lastMonthQty / 4.33);
+    const monthlyScenarioAdjusted = lastMonthQty * monthlyGrowthFactor * demandMult * promoMult * (1 + buffer);
+    const monthlyNextWeekEstimateQty = Math.round(monthlyScenarioAdjusted / 4.33);
+    const monthlyRecQtyNextMonth = Math.round(monthlyScenarioAdjusted);
 
-    const scenarioAdjusted = lastMonthQty * growthFactor * demandMult * promoMult * (1 + buffer);
-    const recQtyNextMonth = Math.round(scenarioAdjusted);
-    const nextWeekEstimateQty = Math.round(recQtyNextMonth / 4.33);
+    const dataSource: MonthlyProductForecast["dataSource"] = weekly && monthlyRows ? "both" : weekly ? "weekly" : "monthly";
+
+    // Prefer the weekly engine's numbers wherever real weekly data exists --
+    // they're built from actual per-week sales, not a monthly average spread
+    // out. The monthly columns (2 months ago / last month / this month)
+    // always come from the monthly report itself, since that's the only
+    // source with that exact shape.
+    const growthPct = weekly ? weekly.growthPct : monthlyGrowthPct;
+    const status = weekly ? weekly.status : statusFor(monthlyRows?.length ?? 0, monthlyGrowthPct);
+
+    const thisWeekIsReal = !!weekly;
+    const thisWeekExampleQty = weekly ? weekly.lastWeekUnits : monthlyThisWeekExampleQty;
+    const thisWeekExampleKg = weekly ? weekly.lastWeekKg : toKg(monthlyThisWeekExampleQty);
+
+    const nextWeekEstimateQty = weekly ? weekly.recUnitsNextWeek ?? Math.round(weekly.recKgNextWeek) : monthlyNextWeekEstimateQty;
+    const nextWeekEstimateKg = weekly ? weekly.recKgNextWeek : toKg(monthlyNextWeekEstimateQty);
+
+    const recQtyNextMonth = weekly ? weekly.recUnitsNextMonth ?? Math.round(weekly.recKgNextMonth) : monthlyRecQtyNextMonth;
+    const recKgNextMonth = weekly ? weekly.recKgNextMonth : toKg(monthlyRecQtyNextMonth);
 
     products.push({
       name,
       sku: skuFor,
+      plu: weekly?.plu ?? null,
       category,
+      channel,
+      marketName,
       weightG,
+      series: weekly?.series ?? [],
+      dataSource,
       twoMonthsAgoQty,
       twoMonthsAgoKg: toKg(twoMonthsAgoQty),
       twoMonthsAgoLabel: monthsAvailable[currentIdx - 2]?.label ?? "—",
@@ -154,12 +199,15 @@ export async function computeMonthlyForecast(
       thisMonthLabel: currentMonth ? `${currentMonth.label}${currentMonth.isPartial ? " (to date)" : ""}` : "—",
       growthPct,
       thisWeekExampleQty,
-      thisWeekExampleKg: toKg(thisWeekExampleQty),
+      thisWeekExampleKg,
+      thisWeekIsReal,
       nextWeekEstimateQty,
-      nextWeekEstimateKg: toKg(nextWeekEstimateQty),
+      nextWeekEstimateKg,
       recQtyNextMonth,
-      recKgNextMonth: toKg(recQtyNextMonth),
-      status: statusFor(productRows.length, growthPct),
+      recKgNextMonth,
+      weeksOfHistory: weekly?.weeksOfHistory ?? 0,
+      monthsOfHistory: monthlyRows?.length ?? 0,
+      status,
     });
   }
 

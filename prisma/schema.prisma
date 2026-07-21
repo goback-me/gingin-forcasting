@@ -98,13 +98,15 @@ model MonthlySales {
   isPartial   Boolean  @default(false) // true if the source range doesn't cover the full month (i.e. this is the current month "to date")
   productName String
   sku         String?
+  channel     String   @default("Market") // "Market" (default) | "Online" -- this source has no channel column today, so everything lands as Market
+  marketName  String? // dummy-assigned (deterministic on productName, same key used for WeeklySales) -- only set when channel is "Market"
   itemsSold   Int
   revenue     Float?
   orders      Int?
   variations  Int?
   importedAt  DateTime @default(now())
 
-  @@unique([month, productName])
+  @@unique([month, productName, channel])
   @@index([productName])
 }
 

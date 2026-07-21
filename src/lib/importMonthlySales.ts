@@ -34,13 +34,17 @@ export async function importMonthlySales(): Promise<MonthlyImportResult> {
 
   for (const row of rows) {
     await prisma.monthlySales.upsert({
-      where: { month_productName: { month: row.month, productName: row.productName } },
+      where: {
+        month_productName_channel: { month: row.month, productName: row.productName, channel: row.channel },
+      },
       create: {
         month: row.month,
         monthLabel: row.monthLabel,
         isPartial: row.isPartial,
         productName: row.productName,
         sku: row.sku,
+        channel: row.channel,
+        marketName: row.marketName,
         itemsSold: row.itemsSold,
         revenue: row.revenue,
         orders: row.orders,
@@ -50,6 +54,7 @@ export async function importMonthlySales(): Promise<MonthlyImportResult> {
         monthLabel: row.monthLabel,
         isPartial: row.isPartial,
         sku: row.sku,
+        marketName: row.marketName,
         itemsSold: row.itemsSold,
         revenue: row.revenue,
         orders: row.orders,

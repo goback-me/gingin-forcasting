@@ -105,7 +105,7 @@ export function readWeeklySalesFile(filePath: string): WeeklySalesRow[] {
 
     const channel = classifyChannel(get(row, "channel"));
     const realMarketName = String(get(row, "marketName") ?? "").trim();
-    const marketName = channel === "Market" ? realMarketName || assignDummyMarket(pluMatch[1]) : null;
+    const marketName = channel === "Market" ? realMarketName || assignDummyMarket(pluMatch[2].trim()) : null;
 
     out.push({
       weekStart: isoWeekToMonday(year, week),

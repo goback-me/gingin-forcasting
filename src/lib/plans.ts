@@ -1,13 +1,13 @@
 import { prisma } from "./db";
-import { computeWeeklyForecast } from "./weeklyForecast";
+import { computeMonthlyForecast } from "./monthlyForecast";
 import { getNextLockInfo } from "./lockSchedule";
 
 /**
  * Everything to do with the weekly review/approval workflow lives here.
- * The forecast engine (weeklyForecast.ts) only ever calculates numbers
- * live -- nothing it produces is ever saved. This file is what actually
- * turns a calculated recommendation into a decision someone made, on a
- * specific date, that gets kept forever.
+ * The forecast engine (monthlyForecast.ts, which merges weekly and monthly
+ * sales) only ever calculates numbers live -- nothing it produces is ever
+ * saved. This file is what actually turns a calculated recommendation into
+ * a decision someone made, on a specific date, that gets kept forever.
  */
 
 /** Returns this week's plan, creating it from the current forecast if it
@@ -30,15 +30,15 @@ export async function getOrCreateCurrentPlan() {
 
   if (plan && (plan as any).items.length > 0) return plan;
 
-  const { products } = await computeWeeklyForecast();
+  const { products } = await computeMonthlyForecast();
 
   const itemsData = products.map((p) => ({
     productName: p.name,
     category: p.category,
     channel: p.channel,
     marketName: p.marketName,
-    recommendedQty: p.recUnitsNextWeek ?? p.recKgNextWeek,
-    recommendedKg: p.recKgNextWeek,
+    recommendedQty: p.nextWeekEstimateQty,
+    recommendedKg: p.nextWeekEstimateKg,
     alertStatus: p.status,
     alertReason: reasonFor(p),
   }));
