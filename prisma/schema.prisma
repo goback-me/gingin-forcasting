@@ -33,6 +33,7 @@ model PlanItem {
   planId         String
   productName    String
   category       String
+  channel        String            @default("Market") // "Market" | "Online" -- snapshotted from the forecast; lets the same product have a separate line per channel
   recommendedQty Int
   recommendedKg  Float?
   approvedQty    Int?
@@ -44,7 +45,7 @@ model PlanItem {
   reviewedAt     DateTime?
   history        PlanItemHistory[]
 
-  @@unique([planId, productName])
+  @@unique([planId, productName, channel])
   @@index([productName])
 }
 
@@ -74,12 +75,13 @@ model WeeklySales {
   weekLabel   String // e.g. "Week 11, 2026" -- for display
   plu         String // the PLU code, e.g. "21" -- closest thing to a SKU in this source
   productName String
+  channel     String   @default("Market") // "Market" (in-store/default) | "Online" -- only set to Online when the source file explicitly says so
   weightKg    Float
   units       Int
   revenue     Float?
   importedAt  DateTime @default(now())
 
-  @@unique([weekStart, plu])
+  @@unique([weekStart, plu, channel])
   @@index([productName])
 }
 
