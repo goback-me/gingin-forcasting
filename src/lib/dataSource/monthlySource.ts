@@ -102,7 +102,12 @@ export function readMonthlySalesFile(filePath: string, assumedYear: number = new
       const itemsSold = Number(get(row, "itemsSold"));
       if (!Number.isFinite(itemsSold)) continue;
 
-      const channel = classifyChannel(get(row, "channel"));
+      // This source is a WooCommerce/Shopify-style order export -- i.e.
+      // online sales -- unlike weeklySource.ts (a physical POS/scale
+      // export). So the default here is "Online", not "Market". Still
+      // respects an explicit channel column if the file ever adds one.
+      const rawChannel = get(row, "channel");
+      const channel = rawChannel ? classifyChannel(rawChannel) : "Online";
       const marketName = channel === "Market" ? assignDummyMarket(productName) : null;
 
       rows.push({
