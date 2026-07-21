@@ -10,6 +10,7 @@ type Product = {
   plu: string;
   category: string;
   channel: "Market" | "Online";
+  marketName: string | null;
   series: WeekPoint[];
   lastWeekKg: number;
   lastWeekUnits: number;
@@ -46,6 +47,7 @@ export default function ForecastPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [channel, setChannel] = useState("");
+  const [marketFilter, setMarketFilter] = useState("");
   const [status, setStatus] = useState("");
   const [sortKey, setSortKey] = useState<keyof Product>("recKgNextWeek");
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
@@ -80,6 +82,10 @@ export default function ForecastPage() {
   }, []);
 
   const categories = useMemo(() => Array.from(new Set(products.map((p) => p.category))).sort(), [products]);
+  const marketNames = useMemo(
+    () => Array.from(new Set(products.filter((p) => p.marketName).map((p) => p.marketName as string))).sort(),
+    [products]
+  );
 
   const filtered = useMemo(() => {
     let list = products;
@@ -89,9 +95,10 @@ export default function ForecastPage() {
     }
     if (category) list = list.filter((p) => p.category === category);
     if (channel) list = list.filter((p) => p.channel === channel);
+    if (marketFilter) list = list.filter((p) => p.marketName === marketFilter);
     if (status) list = list.filter((p) => p.status === status);
     return [...list].sort((a: any, b: any) => (b[sortKey] - a[sortKey]) * -sortDir);
-  }, [products, search, category, channel, status, sortKey, sortDir]);
+  }, [products, search, category, channel, marketFilter, status, sortKey, sortDir]);
 
   function toggleSort(key: keyof Product) {
     if (sortKey === key) setSortDir((d) => (d === 1 ? -1 : 1) as 1 | -1);
@@ -103,10 +110,10 @@ export default function ForecastPage() {
 
   function exportCsv() {
     const header =
-      "Product,PLU,Category,Channel,Last week (kg),Last week (units),4wk avg (kg),4wk avg (units),Growth %,kg per unit,Recommended next week (kg),Recommended next week (units),Status";
+      "Product,PLU,Category,Channel,Market,Last week (kg),Last week (units),4wk avg (kg),4wk avg (units),Growth %,kg per unit,Recommended next week (kg),Recommended next week (units),Status";
     const rows = filtered.map(
       (p) =>
-        `"${p.name}",${p.plu},"${p.category}",${p.channel},${p.lastWeekKg},${p.lastWeekUnits},${p.avgLast4Kg},${p.avgLast4Units},${p.growthPct},${p.avgWeightPerUnitKg ?? ""},${p.recKgNextWeek},${p.recUnitsNextWeek ?? ""},${p.status}`
+        `"${p.name}",${p.plu},"${p.category}",${p.channel},${p.marketName ?? ""},${p.lastWeekKg},${p.lastWeekUnits},${p.avgLast4Kg},${p.avgLast4Units},${p.growthPct},${p.avgWeightPerUnitKg ?? ""},${p.recKgNextWeek},${p.recUnitsNextWeek ?? ""},${p.status}`
     );
     const csv = [header, ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -173,12 +180,29 @@ export default function ForecastPage() {
           <select
             className="border border-borderstrong rounded-lg px-2.5 py-2 text-[13px] w-36 bg-white"
             value={channel}
-            onChange={(e) => setChannel(e.target.value)}
+            onChange={(e) => {
+              setChannel(e.target.value);
+              setMarketFilter(""); // market names only apply to Market rows -- clear if channel changes
+            }}
           >
             <option value="">Market + Online</option>
             <option value="Market">Market only</option>
             <option value="Online">Online only</option>
           </select>
+          {channel === "Market" && marketNames.length > 0 && (
+            <select
+              className="border border-borderstrong rounded-lg px-2.5 py-2 text-[13px] w-40 bg-white"
+              value={marketFilter}
+              onChange={(e) => setMarketFilter(e.target.value)}
+            >
+              <option value="">All markets</option>
+              {marketNames.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          )}
           <select
             className="border border-borderstrong rounded-lg px-2.5 py-2 text-[13px] w-40 bg-white"
             value={status}
@@ -209,6 +233,7 @@ export default function ForecastPage() {
                     ["name", "Product"],
                     ["category", "Category"],
                     ["channel", "Channel"],
+                    ["marketName", "Market"],
                     ["lastWeekKg", "Last week"],
                     ["avgLast4Kg", "4-week average"],
                     ["growthPct", "Growth (4wk trend)"],
@@ -241,6 +266,7 @@ export default function ForecastPage() {
                       <td className="px-2.5 py-2.5">
                         <ChannelBadge channel={p.channel} />
                       </td>
+                      <td className="px-2.5 py-2.5 text-inksoft">{p.marketName ?? "—"}</td>
                       <td className="px-2.5 py-2.5">
                         {p.lastWeekKg} kg
                         <div className="text-[11px] text-inkfaint">{p.lastWeekUnits} units</div>
@@ -319,6 +345,7 @@ function ProductDrawer({ product, onClose }: { product: Product; onClose: () => 
         <div className="text-inkfaint text-[11.5px] mb-5 flex items-center gap-2">
           <span>
             {product.category} · PLU {product.plu} · {product.weeksOfHistory} weeks of history
+            {product.marketName && <> · {product.marketName}</>}
           </span>
           <ChannelBadge channel={product.channel} />
         </div>

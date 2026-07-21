@@ -38,6 +38,7 @@ export async function importWeeklySales(): Promise<WeeklyImportResult> {
         plu: row.plu,
         productName: row.productName,
         channel: row.channel,
+        marketName: row.marketName,
         weightKg: row.weightKg,
         units: row.units,
         revenue: row.revenue,
@@ -45,6 +46,7 @@ export async function importWeeklySales(): Promise<WeeklyImportResult> {
       update: {
         weekLabel: row.weekLabel,
         productName: row.productName,
+        marketName: row.marketName,
         weightKg: row.weightKg,
         units: row.units,
         revenue: row.revenue,

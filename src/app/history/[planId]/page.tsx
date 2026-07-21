@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import ChannelBadge from "@/components/ChannelBadge";
+import ChannelTabs from "@/components/ChannelTabs";
 
 type HistoryEntry = {
   id: string;
@@ -18,6 +19,7 @@ type PlanItem = {
   productName: string;
   category: string;
   channel: "Market" | "Online";
+  marketName: string | null;
   recommendedQty: number;
   recommendedKg: number | null;
   approvedQty: number | null;
@@ -41,6 +43,7 @@ type Plan = {
 export default function PlanDetailPage() {
   const params = useParams();
   const [plan, setPlan] = useState<Plan | null>(null);
+  const [activeTab, setActiveTab] = useState<"Market" | "Online">("Market");
 
   useEffect(() => {
     fetch(`/api/plans/${params.planId}`)
@@ -50,6 +53,10 @@ export default function PlanDetailPage() {
 
   if (!plan) return <div className="text-inkfaint text-sm py-8">Loading…</div>;
 
+  const marketCount = plan.items.filter((i) => i.channel === "Market").length;
+  const onlineCount = plan.items.filter((i) => i.channel === "Online").length;
+  const tabItems = plan.items.filter((i) => i.channel === activeTab);
+
   return (
     <div>
       <div className="font-display text-[26px] mb-1">Week of {fmt(plan.weekStart)}</div>
@@ -58,6 +65,8 @@ export default function PlanDetailPage() {
           ? `Locked by ${plan.lockedBy} on ${fmt(plan.lockedAt!)}`
           : "Still in draft — not yet locked."}
       </div>
+
+      <ChannelTabs active={activeTab} onChange={setActiveTab} marketCount={marketCount} onlineCount={onlineCount} />
 
       <div className="bg-surface border border-border rounded-lg p-5">
         <table className="w-full text-[13px] border-collapse">
@@ -71,12 +80,13 @@ export default function PlanDetailPage() {
             </tr>
           </thead>
           <tbody>
-            {plan.items.map((item) => (
+            {tabItems.map((item) => (
               <tr key={item.id} className="border-b border-border">
                 <td className="px-2 py-2.5">
                   <span className="flex items-center gap-2">
                     {item.productName}
                     <ChannelBadge channel={item.channel} />
+                    {item.marketName && <span className="text-[11px] text-inkfaint">{item.marketName}</span>}
                   </span>
                 </td>
                 <td className="px-2 py-2.5 text-right font-mono">

@@ -12,6 +12,7 @@ export interface WeeklyProductForecast {
   plu: string;
   category: string;
   channel: "Market" | "Online"; // which sales channel this row's numbers come from
+  marketName: string | null; // which market stall this belongs to -- only set when channel is "Market"
   series: WeekPoint[]; // every week this product has data for, in order
 
   lastWeekKg: number;
@@ -96,6 +97,7 @@ export async function computeWeeklyForecast(levers?: {
   for (const [, productRows] of byProduct) {
     const name = productRows[0].productName;
     const channel = (productRows[0].channel ?? "Market") as "Market" | "Online";
+    const marketName = (productRows[0].marketName ?? null) as string | null;
     const byWeek = new Map(productRows.map((r) => [r.weekStart, r]));
     const series: WeekPoint[] = weekKeys
       .filter((w) => byWeek.has(w))
@@ -153,6 +155,7 @@ export async function computeWeeklyForecast(levers?: {
       plu: productRows[0].plu,
       category,
       channel,
+      marketName,
       series,
       lastWeekKg: lastWeek?.kg ?? 0,
       lastWeekUnits: lastWeek?.units ?? 0,

@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import ChannelBadge from "@/components/ChannelBadge";
+import ChannelTabs from "@/components/ChannelTabs";
 
 type HistoryEntry = {
   id: string;
@@ -18,6 +19,7 @@ type PlanItem = {
   productName: string;
   category: string;
   channel: "Market" | "Online";
+  marketName: string | null;
   recommendedQty: number;
   recommendedKg: number | null;
   approvedQty: number | null;
@@ -44,16 +46,20 @@ function ReviewPageInner() {
   const [actor, setActor] = useState("");
   const [filter, setFilter] = useState<"all" | "pending" | "alerts">("all");
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<"Market" | "Online">("Market");
+  const [marketFilter, setMarketFilter] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [overrideDrafts, setOverrideDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setActor(localStorage.getItem("gingin_reviewer_name") || "");
     const fromLink = searchParams.get("product");
+    const fromChannel = searchParams.get("channel");
     if (fromLink) {
       setSearch(fromLink);
       setFilter("all");
     }
+    if (fromChannel === "Market" || fromChannel === "Online") setActiveTab(fromChannel);
     refresh();
   }, []);
 
@@ -68,7 +74,10 @@ function ReviewPageInner() {
       const match = plan.items.find(
         (i) => i.productName === fromLink && (!fromChannel || i.channel === fromChannel)
       );
-      if (match) setExpanded(match.id);
+      if (match) {
+        setExpanded(match.id);
+        setActiveTab(match.channel);
+      }
     }
   }, [plan]);
 
@@ -111,8 +120,17 @@ function ReviewPageInner() {
   }
 
   const items = plan?.items ?? [];
+  const marketNames = useMemo(
+    () =>
+      Array.from(new Set(items.filter((i) => i.channel === "Market" && i.marketName).map((i) => i.marketName as string))).sort(),
+    [items]
+  );
+  const marketCount = useMemo(() => items.filter((i) => i.channel === "Market").length, [items]);
+  const onlineCount = useMemo(() => items.filter((i) => i.channel === "Online").length, [items]);
+
   const filtered = useMemo(() => {
-    let list = items;
+    let list = items.filter((i) => i.channel === activeTab);
+    if (activeTab === "Market" && marketFilter) list = list.filter((i) => i.marketName === marketFilter);
     if (filter === "pending") list = list.filter((i) => i.decision === "pending");
     if (filter === "alerts") list = list.filter((i) => i.alertStatus !== "ok" && i.decision === "pending");
     if (search) {
@@ -120,10 +138,10 @@ function ReviewPageInner() {
       list = list.filter((i) => i.productName.toLowerCase().includes(q));
     }
     return list;
-  }, [items, filter, search]);
+  }, [items, activeTab, marketFilter, filter, search]);
 
-  const reviewedCount = items.filter((i) => i.decision !== "pending").length;
-  const openAlertCount = items.filter((i) => i.alertStatus !== "ok" && i.decision === "pending").length;
+  const reviewedCount = filtered.filter((i) => i.decision !== "pending").length;
+  const openAlertCount = filtered.filter((i) => i.alertStatus !== "ok" && i.decision === "pending").length;
 
   if (loading) return <div className="text-inkfaint text-sm py-8">Loading this week's plan…</div>;
   if (!plan) return <div>Couldn't load a plan.</div>;
@@ -162,6 +180,16 @@ function ReviewPageInner() {
         )}
       </div>
 
+      <ChannelTabs
+        active={activeTab}
+        onChange={(c) => {
+          setActiveTab(c);
+          setMarketFilter("");
+        }}
+        marketCount={marketCount}
+        onlineCount={onlineCount}
+      />
+
       <div className="flex gap-2.5 mb-4 flex-wrap items-center">
         <input
           className="border border-borderstrong rounded-lg px-3 py-2 text-[13px] w-64"
@@ -169,6 +197,20 @@ function ReviewPageInner() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        {activeTab === "Market" && marketNames.length > 0 && (
+          <select
+            className="border border-borderstrong rounded-lg px-2.5 py-2 text-[13px] w-40 bg-white"
+            value={marketFilter}
+            onChange={(e) => setMarketFilter(e.target.value)}
+          >
+            <option value="">All markets</option>
+            {marketNames.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        )}
         <select
           className="border border-borderstrong rounded-lg px-2.5 py-2 text-[13px] w-56 bg-white"
           value={filter}
@@ -191,6 +233,7 @@ function ReviewPageInner() {
                 <div className="text-[13.5px] font-medium flex items-center gap-2">
                   {item.productName}
                   <ChannelBadge channel={item.channel} />
+                  {item.marketName && <span className="text-[11px] text-inkfaint">{item.marketName}</span>}
                   {item.alertStatus !== "ok" && (
                     <span className={`badge badge-${item.alertStatus}`}>{item.alertStatus.replace("_", " ")}</span>
                   )}

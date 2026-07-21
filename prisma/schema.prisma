@@ -34,6 +34,7 @@ model PlanItem {
   productName    String
   category       String
   channel        String            @default("Market") // "Market" | "Online" -- snapshotted from the forecast; lets the same product have a separate line per channel
+  marketName     String? // which physical market this line belongs to, snapshotted from the forecast -- null for Online lines
   recommendedQty Int
   recommendedKg  Float?
   approvedQty    Int?
@@ -76,6 +77,7 @@ model WeeklySales {
   plu         String // the PLU code, e.g. "21" -- closest thing to a SKU in this source
   productName String
   channel     String   @default("Market") // "Market" (in-store/default) | "Online" -- only set to Online when the source file explicitly says so
+  marketName  String? // which physical market stall this was sold through -- only set when channel is "Market". Dummy-assigned for now (deterministic per PLU) until a real source column exists.
   weightKg    Float
   units       Int
   revenue     Float?

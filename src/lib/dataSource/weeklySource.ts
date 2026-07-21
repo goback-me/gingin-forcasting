@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import fs from "fs";
 import { classifyChannel, Channel } from "../channel";
+import { assignDummyMarket } from "../dummyMarket";
 
 export interface WeeklySalesRow {
   weekStart: string; // ISO date, Monday of that week
@@ -8,6 +9,7 @@ export interface WeeklySalesRow {
   plu: string;
   productName: string;
   channel: Channel;
+  marketName: string | null; // only set when channel is "Market"
   weightKg: number;
   units: number;
   revenue: number | null;
@@ -25,6 +27,10 @@ const HEADER_ALIASES: Record<string, string[]> = {
   // Optional -- most exports won't have this yet. When it's missing every
   // row defaults to "Market" (see classifyChannel).
   channel: ["Channel", "Sale Channel", "Source", "Order Type", "Market/Online"],
+  // Optional -- if a source ever adds a real market/stall column, this
+  // picks it up automatically. Until then, Market rows get a dummy
+  // assignment (see assignDummyMarket) instead.
+  marketName: ["Market Name", "Market", "Stall", "Location"],
 };
 
 function resolveHeaders(sourceHeaders: string[]): Record<string, string | undefined> {
@@ -97,12 +103,17 @@ export function readWeeklySalesFile(filePath: string): WeeklySalesRow[] {
     const year = Number(yearStr);
     const week = Number(weekStr);
 
+    const channel = classifyChannel(get(row, "channel"));
+    const realMarketName = String(get(row, "marketName") ?? "").trim();
+    const marketName = channel === "Market" ? realMarketName || assignDummyMarket(pluMatch[1]) : null;
+
     out.push({
       weekStart: isoWeekToMonday(year, week),
       weekLabel: `Week ${week}, ${year}`,
       plu: pluMatch[1],
       productName: pluMatch[2].trim(),
-      channel: classifyChannel(get(row, "channel")),
+      channel,
+      marketName,
       weightKg,
       units,
       revenue: numOrNull(get(row, "revenue")),

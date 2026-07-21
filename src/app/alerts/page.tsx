@@ -2,12 +2,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import ChannelBadge from "@/components/ChannelBadge";
+import ChannelTabs from "@/components/ChannelTabs";
 
 type PlanItem = {
   id: string;
   productName: string;
   category: string;
   channel: "Market" | "Online";
+  marketName: string | null;
   alertStatus: string;
   alertReason: string | null;
   decision: string;
@@ -19,6 +21,7 @@ export default function AlertsPage() {
   const [items, setItems] = useState<PlanItem[]>([]);
   const [weekStart, setWeekStart] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"Market" | "Online">("Market");
 
   useEffect(() => {
     fetch("/api/plans/current")
@@ -30,8 +33,11 @@ export default function AlertsPage() {
       });
   }, []);
 
-  const openAlerts = items.filter((i) => i.alertStatus !== "ok" && i.decision === "pending");
-  const resolvedAlerts = items.filter((i) => i.alertStatus !== "ok" && i.decision !== "pending");
+  const tabItems = items.filter((i) => i.channel === activeTab);
+  const marketCount = items.filter((i) => i.channel === "Market").length;
+  const onlineCount = items.filter((i) => i.channel === "Online").length;
+  const openAlerts = tabItems.filter((i) => i.alertStatus !== "ok" && i.decision === "pending");
+  const resolvedAlerts = tabItems.filter((i) => i.alertStatus !== "ok" && i.decision !== "pending");
 
   return (
     <div>
@@ -45,6 +51,8 @@ export default function AlertsPage() {
           Go to this week's plan →
         </Link>
       </div>
+
+      <ChannelTabs active={activeTab} onChange={setActiveTab} marketCount={marketCount} onlineCount={onlineCount} />
 
       <div className="bg-surface border border-border rounded-lg p-5 mb-5">
         <div className="font-display text-[15px] mb-3">Needs action ({openAlerts.length})</div>
@@ -65,6 +73,7 @@ export default function AlertsPage() {
               <div className="text-[13.5px] font-medium flex items-center gap-2">
                 {item.productName}
                 <ChannelBadge channel={item.channel} />
+                {item.marketName && <span className="text-[11px] text-inkfaint">{item.marketName}</span>}
               </div>
               <div className="text-[12.5px] text-inksoft mt-0.5">{item.alertReason}</div>
             </div>
@@ -81,6 +90,7 @@ export default function AlertsPage() {
               <div className="text-[13px] text-inksoft flex-1 flex items-center gap-2">
                 {item.productName}
                 <ChannelBadge channel={item.channel} />
+                {item.marketName && <span className="text-[11px] text-inkfaint">{item.marketName}</span>}
               </div>
               <span className="badge badge-ok">{item.decision}</span>
             </div>

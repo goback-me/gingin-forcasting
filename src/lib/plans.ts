@@ -36,6 +36,7 @@ export async function getOrCreateCurrentPlan() {
     productName: p.name,
     category: p.category,
     channel: p.channel,
+    marketName: p.marketName,
     recommendedQty: p.recUnitsNextWeek ?? p.recKgNextWeek,
     recommendedKg: p.recKgNextWeek,
     alertStatus: p.status,
