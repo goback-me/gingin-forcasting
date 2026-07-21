@@ -160,7 +160,13 @@ export default function ForecastPage() {
       );
 
     if (col.type === "kg") {
-      if (val === null || val === undefined) return <span className="text-inkfaint">—</span>;
+      if (val === null || val === undefined) {
+        const isMonthlyOnlyCol = ["twoMonthsAgoKg", "lastMonthKg", "thisMonthKg"].includes(col.key);
+        if (isMonthlyOnlyCol && p.channel === "Market") {
+          return <span className="text-inkfaint" title="No monthly data source exists for Market -- only the weekly file covers Market sales">n/a</span>;
+        }
+        return <span className="text-inkfaint">—</span>;
+      }
       const isEstimateCol = col.key === "thisWeekExampleKg" && !p.thisWeekIsReal;
       return (
         <span>
