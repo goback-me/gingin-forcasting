@@ -1,11 +1,13 @@
 import * as XLSX from "xlsx";
 import fs from "fs";
+import { classifyChannel, Channel } from "../channel";
 
 export interface WeeklySalesRow {
   weekStart: string; // ISO date, Monday of that week
   weekLabel: string;
   plu: string;
   productName: string;
+  channel: Channel;
   weightKg: number;
   units: number;
   revenue: number | null;
@@ -20,6 +22,9 @@ const HEADER_ALIASES: Record<string, string[]> = {
   weightKg: ["Total Wgt", "Weight", "Total Weight"],
   units: ["Total Units", "Units", "Quantity"],
   revenue: ["Total Sales", "Sales", "Revenue"],
+  // Optional -- most exports won't have this yet. When it's missing every
+  // row defaults to "Market" (see classifyChannel).
+  channel: ["Channel", "Sale Channel", "Source", "Order Type", "Market/Online"],
 };
 
 function resolveHeaders(sourceHeaders: string[]): Record<string, string | undefined> {
@@ -97,6 +102,7 @@ export function readWeeklySalesFile(filePath: string): WeeklySalesRow[] {
       weekLabel: `Week ${week}, ${year}`,
       plu: pluMatch[1],
       productName: pluMatch[2].trim(),
+      channel: classifyChannel(get(row, "channel")),
       weightKg,
       units,
       revenue: numOrNull(get(row, "revenue")),

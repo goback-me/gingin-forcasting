@@ -29,12 +29,15 @@ export async function importWeeklySales(): Promise<WeeklyImportResult> {
 
   for (const row of rows) {
     await prisma.weeklySales.upsert({
-      where: { weekStart_plu: { weekStart: row.weekStart, plu: row.plu } },
+      where: {
+        weekStart_plu_channel: { weekStart: row.weekStart, plu: row.plu, channel: row.channel },
+      },
       create: {
         weekStart: row.weekStart,
         weekLabel: row.weekLabel,
         plu: row.plu,
         productName: row.productName,
+        channel: row.channel,
         weightKg: row.weightKg,
         units: row.units,
         revenue: row.revenue,

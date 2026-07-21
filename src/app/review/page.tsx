@@ -1,6 +1,7 @@
 "use client";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import ChannelBadge from "@/components/ChannelBadge";
 
 type HistoryEntry = {
   id: string;
@@ -16,6 +17,7 @@ type PlanItem = {
   id: string;
   productName: string;
   category: string;
+  channel: "Market" | "Online";
   recommendedQty: number;
   recommendedKg: number | null;
   approvedQty: number | null;
@@ -58,9 +60,14 @@ function ReviewPageInner() {
   useEffect(() => {
     // Once the plan loads, if we arrived from an Alerts link, auto-expand
     // that exact item so the reviewer doesn't have to click it again.
+    // Matches on channel too when present, since the same product name can
+    // now appear as two separate lines (Market and Online).
     const fromLink = searchParams.get("product");
+    const fromChannel = searchParams.get("channel");
     if (fromLink && plan) {
-      const match = plan.items.find((i) => i.productName === fromLink);
+      const match = plan.items.find(
+        (i) => i.productName === fromLink && (!fromChannel || i.channel === fromChannel)
+      );
       if (match) setExpanded(match.id);
     }
   }, [plan]);
@@ -183,6 +190,7 @@ function ReviewPageInner() {
               <div className="flex-1 min-w-0">
                 <div className="text-[13.5px] font-medium flex items-center gap-2">
                   {item.productName}
+                  <ChannelBadge channel={item.channel} />
                   {item.alertStatus !== "ok" && (
                     <span className={`badge badge-${item.alertStatus}`}>{item.alertStatus.replace("_", " ")}</span>
                   )}

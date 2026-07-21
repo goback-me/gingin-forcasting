@@ -2,12 +2,14 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import StatusBadge from "@/components/StatusBadge";
+import ChannelBadge from "@/components/ChannelBadge";
 
 type WeekPoint = { weekStart: string; weekLabel: string; units: number; kg: number };
 type Product = {
   name: string;
   plu: string;
   category: string;
+  channel: "Market" | "Online";
   series: WeekPoint[];
   lastWeekKg: number;
   lastWeekUnits: number;
@@ -43,6 +45,7 @@ export default function ForecastPage() {
   const [showGlossary, setShowGlossary] = useState(true);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
+  const [channel, setChannel] = useState("");
   const [status, setStatus] = useState("");
   const [sortKey, setSortKey] = useState<keyof Product>("recKgNextWeek");
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
@@ -85,9 +88,10 @@ export default function ForecastPage() {
       list = list.filter((p) => p.name.toLowerCase().includes(q) || p.plu.includes(q));
     }
     if (category) list = list.filter((p) => p.category === category);
+    if (channel) list = list.filter((p) => p.channel === channel);
     if (status) list = list.filter((p) => p.status === status);
     return [...list].sort((a: any, b: any) => (b[sortKey] - a[sortKey]) * -sortDir);
-  }, [products, search, category, status, sortKey, sortDir]);
+  }, [products, search, category, channel, status, sortKey, sortDir]);
 
   function toggleSort(key: keyof Product) {
     if (sortKey === key) setSortDir((d) => (d === 1 ? -1 : 1) as 1 | -1);
@@ -99,10 +103,10 @@ export default function ForecastPage() {
 
   function exportCsv() {
     const header =
-      "Product,PLU,Category,Last week (kg),Last week (units),4wk avg (kg),4wk avg (units),Growth %,kg per unit,Recommended next week (kg),Recommended next week (units),Status";
+      "Product,PLU,Category,Channel,Last week (kg),Last week (units),4wk avg (kg),4wk avg (units),Growth %,kg per unit,Recommended next week (kg),Recommended next week (units),Status";
     const rows = filtered.map(
       (p) =>
-        `"${p.name}",${p.plu},"${p.category}",${p.lastWeekKg},${p.lastWeekUnits},${p.avgLast4Kg},${p.avgLast4Units},${p.growthPct},${p.avgWeightPerUnitKg ?? ""},${p.recKgNextWeek},${p.recUnitsNextWeek ?? ""},${p.status}`
+        `"${p.name}",${p.plu},"${p.category}",${p.channel},${p.lastWeekKg},${p.lastWeekUnits},${p.avgLast4Kg},${p.avgLast4Units},${p.growthPct},${p.avgWeightPerUnitKg ?? ""},${p.recKgNextWeek},${p.recUnitsNextWeek ?? ""},${p.status}`
     );
     const csv = [header, ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -167,6 +171,15 @@ export default function ForecastPage() {
             ))}
           </select>
           <select
+            className="border border-borderstrong rounded-lg px-2.5 py-2 text-[13px] w-36 bg-white"
+            value={channel}
+            onChange={(e) => setChannel(e.target.value)}
+          >
+            <option value="">Market + Online</option>
+            <option value="Market">Market only</option>
+            <option value="Online">Online only</option>
+          </select>
+          <select
             className="border border-borderstrong rounded-lg px-2.5 py-2 text-[13px] w-40 bg-white"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
@@ -195,6 +208,7 @@ export default function ForecastPage() {
                   {[
                     ["name", "Product"],
                     ["category", "Category"],
+                    ["channel", "Channel"],
                     ["lastWeekKg", "Last week"],
                     ["avgLast4Kg", "4-week average"],
                     ["growthPct", "Growth (4wk trend)"],
@@ -217,12 +231,15 @@ export default function ForecastPage() {
                   const override = overrides[p.name];
                   const hasOpenAlert = openAlertProducts.has(p.name);
                   return (
-                    <tr key={p.name} onClick={() => setSelected(p)} className="cursor-pointer hover:bg-surface2 border-b border-border">
+                    <tr key={`${p.name}::${p.channel}`} onClick={() => setSelected(p)} className="cursor-pointer hover:bg-surface2 border-b border-border">
                       <td className="px-2.5 py-2.5">{p.name}</td>
                       <td className="px-2.5 py-2.5 text-inksoft">
                         <span className="block truncate max-w-[140px]" title={p.category}>
                           {p.category}
                         </span>
+                      </td>
+                      <td className="px-2.5 py-2.5">
+                        <ChannelBadge channel={p.channel} />
                       </td>
                       <td className="px-2.5 py-2.5">
                         {p.lastWeekKg} kg
@@ -265,7 +282,7 @@ export default function ForecastPage() {
                         <span className="flex flex-col items-start gap-0.5">
                           <StatusBadge status={p.status} />
                           <Link
-                            href={`/review?product=${encodeURIComponent(p.name)}`}
+                            href={`/review?product=${encodeURIComponent(p.name)}&channel=${p.channel}`}
                             onClick={(e) => e.stopPropagation()}
                             className={`text-[10.5px] underline-offset-2 hover:underline whitespace-nowrap ${
                               hasOpenAlert ? "text-brick-strong" : "text-inkfaint"
@@ -299,8 +316,11 @@ function ProductDrawer({ product, onClose }: { product: Product; onClose: () => 
           &times;
         </button>
         <div className="font-display text-xl mb-1">{product.name}</div>
-        <div className="text-inkfaint text-[11.5px] mb-5">
-          {product.category} · PLU {product.plu} · {product.weeksOfHistory} weeks of history
+        <div className="text-inkfaint text-[11.5px] mb-5 flex items-center gap-2">
+          <span>
+            {product.category} · PLU {product.plu} · {product.weeksOfHistory} weeks of history
+          </span>
+          <ChannelBadge channel={product.channel} />
         </div>
 
         <div className="text-[12px] text-inkfaint mb-2 uppercase tracking-wide">Weekly sales (kg)</div>

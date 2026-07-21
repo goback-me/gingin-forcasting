@@ -35,6 +35,7 @@ export async function getOrCreateCurrentPlan() {
   const itemsData = products.map((p) => ({
     productName: p.name,
     category: p.category,
+    channel: p.channel,
     recommendedQty: p.recUnitsNextWeek ?? p.recKgNextWeek,
     recommendedKg: p.recKgNextWeek,
     alertStatus: p.status,

@@ -11,6 +11,7 @@ export interface WeeklyProductForecast {
   name: string;
   plu: string;
   category: string;
+  channel: "Market" | "Online"; // which sales channel this row's numbers come from
   series: WeekPoint[]; // every week this product has data for, in order
 
   lastWeekKg: number;
@@ -84,14 +85,17 @@ export async function computeWeeklyForecast(levers?: {
 
   const byProduct = new Map<string, any[]>();
   for (const row of rows as any[]) {
-    const list = byProduct.get(row.productName) ?? [];
+    const key = `${row.productName}::${row.channel ?? "Market"}`;
+    const list = byProduct.get(key) ?? [];
     list.push(row);
-    byProduct.set(row.productName, list);
+    byProduct.set(key, list);
   }
 
   const products: WeeklyProductForecast[] = [];
 
-  for (const [name, productRows] of byProduct) {
+  for (const [, productRows] of byProduct) {
+    const name = productRows[0].productName;
+    const channel = (productRows[0].channel ?? "Market") as "Market" | "Online";
     const byWeek = new Map(productRows.map((r) => [r.weekStart, r]));
     const series: WeekPoint[] = weekKeys
       .filter((w) => byWeek.has(w))
@@ -148,6 +152,7 @@ export async function computeWeeklyForecast(levers?: {
       name,
       plu: productRows[0].plu,
       category,
+      channel,
       series,
       lastWeekKg: lastWeek?.kg ?? 0,
       lastWeekUnits: lastWeek?.units ?? 0,

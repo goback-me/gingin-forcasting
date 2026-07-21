@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import ChannelBadge from "@/components/ChannelBadge";
 
 type PlanItem = {
   id: string;
   productName: string;
   category: string;
+  channel: "Market" | "Online";
   alertStatus: string;
   alertReason: string | null;
   decision: string;
@@ -53,14 +55,17 @@ export default function AlertsPage() {
         {openAlerts.map((item) => (
           <Link
             key={item.id}
-            href={`/review?product=${encodeURIComponent(item.productName)}`}
+            href={`/review?product=${encodeURIComponent(item.productName)}&channel=${item.channel}`}
             className="flex gap-3.5 py-3.5 border-b border-border last:border-0 hover:bg-surface2 -mx-1 px-1 rounded"
           >
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-[15px] badge-${item.alertStatus}`}>
               {ICON[item.alertStatus]}
             </div>
             <div className="flex-1">
-              <div className="text-[13.5px] font-medium">{item.productName}</div>
+              <div className="text-[13.5px] font-medium flex items-center gap-2">
+                {item.productName}
+                <ChannelBadge channel={item.channel} />
+              </div>
               <div className="text-[12.5px] text-inksoft mt-0.5">{item.alertReason}</div>
             </div>
             <div className="text-[12px] text-green-strong self-center whitespace-nowrap">Review →</div>
@@ -73,7 +78,10 @@ export default function AlertsPage() {
           <div className="font-display text-[15px] mb-3">Already reviewed this week ({resolvedAlerts.length})</div>
           {resolvedAlerts.map((item) => (
             <div key={item.id} className="flex gap-3.5 py-2.5 border-b border-border last:border-0">
-              <div className="text-[13px] text-inksoft flex-1">{item.productName}</div>
+              <div className="text-[13px] text-inksoft flex-1 flex items-center gap-2">
+                {item.productName}
+                <ChannelBadge channel={item.channel} />
+              </div>
               <span className="badge badge-ok">{item.decision}</span>
             </div>
           ))}

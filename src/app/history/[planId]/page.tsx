@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import ChannelBadge from "@/components/ChannelBadge";
 
 type HistoryEntry = {
   id: string;
@@ -16,6 +17,7 @@ type PlanItem = {
   id: string;
   productName: string;
   category: string;
+  channel: "Market" | "Online";
   recommendedQty: number;
   recommendedKg: number | null;
   approvedQty: number | null;
@@ -71,7 +73,12 @@ export default function PlanDetailPage() {
           <tbody>
             {plan.items.map((item) => (
               <tr key={item.id} className="border-b border-border">
-                <td className="px-2 py-2.5">{item.productName}</td>
+                <td className="px-2 py-2.5">
+                  <span className="flex items-center gap-2">
+                    {item.productName}
+                    <ChannelBadge channel={item.channel} />
+                  </span>
+                </td>
                 <td className="px-2 py-2.5 text-right font-mono">
                   {item.recommendedKg !== null ? `${item.recommendedKg} kg` : `${item.recommendedQty} units`}
                 </td>
