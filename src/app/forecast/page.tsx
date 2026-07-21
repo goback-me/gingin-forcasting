@@ -160,10 +160,30 @@ export default function ForecastPage() {
       );
 
     if (col.type === "kg") {
+      const qtyKey: Record<string, string> = {
+        twoMonthsAgoKg: "twoMonthsAgoQty",
+        lastMonthKg: "lastMonthQty",
+        thisMonthKg: "thisMonthQty",
+        thisWeekExampleKg: "thisWeekExampleQty",
+        nextWeekEstimateKg: "nextWeekEstimateQty",
+        recKgNextMonth: "recQtyNextMonth",
+      };
+      const qty = qtyKey[col.key] ? (p as any)[qtyKey[col.key]] : undefined;
+
       if (val === null || val === undefined) {
         const isMonthlyOnlyCol = ["twoMonthsAgoKg", "lastMonthKg", "thisMonthKg"].includes(col.key);
         if (isMonthlyOnlyCol && p.channel === "Market") {
           return <span className="text-inkfaint" title="No monthly data source exists for Market -- only the weekly file covers Market sales">n/a</span>;
+        }
+        if (typeof qty === "number") {
+          return (
+            <span>
+              {qty} units
+              <span className="text-[10px] text-inkfaint ml-1" title="No weight-per-unit data available for this product yet, so kg can't be calculated">
+                (no weight data)
+              </span>
+            </span>
+          );
         }
         return <span className="text-inkfaint">—</span>;
       }
