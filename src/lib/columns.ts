@@ -2,17 +2,19 @@ import { prisma } from "./db";
 
 export const DEFAULT_COLUMNS = [
   { key: "name", label: "Product", type: "text", sortOrder: 0 },
-  { key: "category", label: "Category", type: "text", sortOrder: 1 },
-  { key: "channel", label: "Channel", type: "badge", sortOrder: 2 },
-  { key: "marketName", label: "Market", type: "text", sortOrder: 3 },
-  { key: "twoMonthsAgoKg", label: "2 months ago", type: "kg", sortOrder: 4 },
-  { key: "lastMonthKg", label: "Last month", type: "kg", sortOrder: 5 },
-  { key: "thisMonthKg", label: "This month (so far)", type: "kg", sortOrder: 6 },
-  { key: "growthPct", label: "Growth", type: "percent", sortOrder: 7 },
-  { key: "thisWeekExampleKg", label: "This week", type: "kg", sortOrder: 8 },
-  { key: "nextWeekEstimateKg", label: "Next week", type: "kg", sortOrder: 9 },
-  { key: "recKgNextMonth", label: "Recommended for next month", type: "kg", sortOrder: 10 },
-  { key: "status", label: "Status", type: "badge", sortOrder: 11 },
+  { key: "productCode", label: "Product Code", type: "text", sortOrder: 1 },
+  { key: "category", label: "Category", type: "text", sortOrder: 2 },
+  { key: "subCategory", label: "Subcategory", type: "text", sortOrder: 3 },
+  { key: "channel", label: "Channel", type: "badge", sortOrder: 4 },
+  { key: "marketName", label: "Market", type: "text", sortOrder: 5 },
+  { key: "twoMonthsAgoKg", label: "2 months ago", type: "kg", sortOrder: 6 },
+  { key: "lastMonthKg", label: "Last month", type: "kg", sortOrder: 7 },
+  { key: "thisMonthKg", label: "This month (so far)", type: "kg", sortOrder: 8 },
+  { key: "growthPct", label: "Growth", type: "percent", sortOrder: 9 },
+  { key: "thisWeekExampleKg", label: "This week", type: "kg", sortOrder: 10 },
+  { key: "nextWeekEstimateKg", label: "Next week", type: "kg", sortOrder: 11 },
+  { key: "recKgNextMonth", label: "Recommended for next month", type: "kg", sortOrder: 12 },
+  { key: "status", label: "Status", type: "badge", sortOrder: 13 },
 ];
 
 const DEPRECATED_KEYS = [

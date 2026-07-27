@@ -33,6 +33,8 @@ model PlanItem {
   planId         String
   productName    String
   category       String
+  subCategory    String? // snapshotted from the forecast at plan-creation time, same as category
+  productCode    String? // snapshotted from the forecast -- SKU for Online, PLU for Market
   channel        String            @default("Market") // "Market" | "Online" -- snapshotted from the forecast; lets the same product have a separate line per channel
   marketName     String? // which physical market this line belongs to, snapshotted from the forecast -- null for Online lines
   recommendedQty Int
@@ -131,6 +133,7 @@ model OrderItem {
   productName String
   sku         String?
   category    String?
+  subCategory String? // finer-grained than category, e.g. "Mince" under "Beef" -- only populated when the source file has a subcategory column
   quantity    Float
   weightG     Float?
   itemCost    Float?

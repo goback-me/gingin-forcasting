@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import { computeWeeklyForecast, WeeklyProductForecast } from "./weeklyForecast";
+import { guessCategory } from "./categorize";
 
 type MonthlyRow = {
   month: string;
@@ -16,7 +17,9 @@ export interface MonthlyProductForecast {
   name: string;
   sku: string | null;
   plu: string | null;
+  productCode: string | null; // the code staff actually use to identify this product -- SKU for Online, PLU for Market (falls back to whichever exists)
   category: string;
+  subCategory: string | null;
   channel: "Market" | "Online";
   marketName: string | null;
   weightG: number | null;
@@ -138,11 +141,20 @@ export async function computeMonthlyForecast(
 
     const enrichment = await prisma.orderItem.findFirst({
       where: { productName: name },
-      select: { weightG: true, category: true },
+      select: { weightG: true, category: true, subCategory: true },
       orderBy: { id: "desc" },
     });
     const weightG = enrichment?.weightG ?? null;
-    const category = weekly?.category ?? enrichment?.category ?? "Uncategorised";
+    // Category/subcategory chain: real weekly source -> real enrichment ->
+    // guessed placeholder (see categorize.ts) until the client's real
+    // category file arrives.
+    const guessed = guessCategory(name);
+    const category = weekly?.category ?? enrichment?.category ?? guessed.category;
+    const subCategory = enrichment?.subCategory ?? guessed.subCategory;
+    // Product Code: Online items are identified by SKU; Market items are
+    // identified by PLU (the weekly file's own product code) -- fall back
+    // to whichever one actually exists for this product.
+    const productCode = channel === "Online" ? skuFor ?? weekly?.plu ?? null : weekly?.plu ?? skuFor ?? null;
 
     const twoMonthsAgoQty = qtyFor(twoMonthsAgoKey);
     const lastMonthQty = qtyFor(lastMonthKey);
@@ -182,7 +194,9 @@ export async function computeMonthlyForecast(
       name,
       sku: skuFor,
       plu: weekly?.plu ?? null,
+      productCode,
       category,
+      subCategory,
       channel,
       marketName,
       weightG,

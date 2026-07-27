@@ -58,6 +58,7 @@ export class TabularOrderSource implements OrderSource {
           productName,
           sku: str(get(row, "sku")),
           category: cleanCategory(get(row, "category")),
+          subCategory: str(get(row, "subCategory")),
           quantity,
           weightG: numOrUndef(get(row, "weightG")),
           itemCost: numOrUndef(get(row, "itemCost")),

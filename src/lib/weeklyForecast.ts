@@ -10,7 +10,7 @@ export interface WeekPoint {
 export interface WeeklyProductForecast {
   name: string;
   plu: string;
-  category: string;
+  category: string | null;
   channel: "Market" | "Online"; // which sales channel this row's numbers come from
   marketName: string | null; // which market stall this belongs to -- only set when channel is "Market"
   series: WeekPoint[]; // every week this product has data for, in order
@@ -111,7 +111,10 @@ export async function computeWeeklyForecast(levers?: {
       select: { category: true },
       orderBy: { id: "desc" },
     });
-    const category = (enrichment as any)?.category ?? "Uncategorised";
+    // Null (not a sentinel string) so monthlyForecast's fallback chain
+    // (weekly -> enrichment -> guessed) actually cascades. A hardcoded
+    // "Uncategorised" here used to short-circuit that chain every time.
+    const category = (enrichment as any)?.category ?? null;
 
     const kgSeries = series.map((s) => s.kg);
     const unitsSeries = series.map((s) => s.units);

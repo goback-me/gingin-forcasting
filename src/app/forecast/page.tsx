@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import StatusBadge from "@/components/StatusBadge";
 import ChannelBadge from "@/components/ChannelBadge";
@@ -10,7 +10,9 @@ type Product = {
   name: string;
   sku: string | null;
   plu: string | null;
+  productCode: string | null;
   category: string;
+  subCategory: string | null;
   channel: "Market" | "Online";
   marketName: string | null;
   weightG: number | null;
@@ -55,6 +57,33 @@ export default function ForecastPage() {
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
   const [selected, setSelected] = useState<Product | null>(null);
   const [openAlertProducts, setOpenAlertProducts] = useState<Set<string>>(new Set());
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const [tableWidth, setTableWidth] = useState(1300);
+
+  // Keep the top scrollbar's width in sync with the actual table width
+  // (columns can change once real data loads in).
+  useEffect(() => {
+    function updateWidth() {
+      if (tableRef.current) setTableWidth(tableRef.current.scrollWidth);
+    }
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    if (tableRef.current) ro.observe(tableRef.current);
+    window.addEventListener("resize", updateWidth);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateWidth);
+    };
+  }, [columns, loading]);
+
+  function syncFromTop() {
+    if (scrollRef.current && topScrollRef.current) scrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+  }
+  function syncFromBottom() {
+    if (scrollRef.current && topScrollRef.current) topScrollRef.current.scrollLeft = scrollRef.current.scrollLeft;
+  }
 
   useEffect(() => {
     fetch("/api/products")
@@ -111,10 +140,11 @@ export default function ForecastPage() {
   }
 
   function exportCsv() {
-    const header = "Product,SKU,Category,Channel,Market,2 months ago (kg),Last month (kg),This month (kg),Growth %,This week (kg),Next week (kg),Recommended next month (kg),Status";
+    const header =
+      "Product,Product Code,Category,Subcategory,Channel,Market,2 months ago (kg),Last month (kg),This month (kg),Growth %,This week (qty),This week (kg),Next week (qty),Next week (kg),Recommended next month (kg),Status";
     const rows = filtered.map(
       (p) =>
-        `"${p.name}",${p.sku ?? ""},"${p.category}",${p.channel},${p.marketName ?? ""},${p.twoMonthsAgoKg ?? ""},${p.lastMonthKg ?? ""},${p.thisMonthKg ?? ""},${p.growthPct},${p.thisWeekExampleKg ?? ""},${p.nextWeekEstimateKg ?? ""},${p.recKgNextMonth ?? ""},${p.status}`
+        `"${p.name}",${p.productCode ?? ""},"${p.category}","${p.subCategory ?? ""}",${p.channel},${p.marketName ?? ""},${p.twoMonthsAgoKg ?? ""},${p.lastMonthKg ?? ""},${p.thisMonthKg ?? ""},${p.growthPct},${p.thisWeekExampleQty ?? ""},${p.thisWeekExampleKg ?? ""},${p.nextWeekEstimateQty ?? ""},${p.nextWeekEstimateKg ?? ""},${p.recKgNextMonth ?? ""},${p.status}`
     );
     const csv = [header, ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -169,6 +199,7 @@ export default function ForecastPage() {
         recKgNextMonth: "recQtyNextMonth",
       };
       const qty = qtyKey[col.key] ? (p as any)[qtyKey[col.key]] : undefined;
+      const isEstimateCol = col.key === "thisWeekExampleKg" && !p.thisWeekIsReal;
 
       if (val === null || val === undefined) {
         const isMonthlyOnlyCol = ["twoMonthsAgoKg", "lastMonthKg", "thisMonthKg"].includes(col.key);
@@ -187,7 +218,19 @@ export default function ForecastPage() {
         }
         return <span className="text-inkfaint">—</span>;
       }
-      const isEstimateCol = col.key === "thisWeekExampleKg" && !p.thisWeekIsReal;
+
+      // Online always keeps the unit quantity alongside kg (client
+      // requirement) -- quantity shown first, then kg. Market only ever
+      // shows kg, since Market sales are tracked by weight, not unit count.
+      if (p.channel === "Online" && typeof qty === "number") {
+        return (
+          <span>
+            {qty} qty · {val} kg
+            {isEstimateCol && <span className="text-[10px] text-inkfaint ml-1">(estimate)</span>}
+          </span>
+        );
+      }
+
       return (
         <span>
           {val} kg
@@ -286,37 +329,56 @@ export default function ForecastPage() {
         {loading ? (
           <div className="text-inkfaint text-sm py-8 text-center">Loading…</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-[13px] border-collapse">
-              <thead>
-                <tr>
-                  {columns.map((col) => (
-                    <th
-                      key={col.key}
-                      onClick={() => toggleSort(col.key)}
-                      className="text-left px-2.5 py-2.5 text-inkfaint text-[11.5px] uppercase tracking-wide border-b border-borderstrong cursor-pointer hover:text-inksoft leading-tight"
-                    >
-                      {col.label} {sortKey === col.key ? (sortDir === 1 ? "↑" : "↓") : ""}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((p) => (
-                  <tr
-                    key={`${p.name}::${p.channel}`}
-                    onClick={() => setSelected(p)}
-                    className="cursor-pointer hover:bg-surface2 border-b border-border"
-                  >
-                    {columns.map((col) => (
-                      <td key={col.key} className="px-2.5 py-2.5">
-                        {renderCell(p, col)}
-                      </td>
+          <div>
+            <div
+              ref={topScrollRef}
+              onScroll={syncFromTop}
+              className="overflow-x-auto themed-scrollbar mb-1"
+              style={{ height: 14 }}
+            >
+              <div style={{ width: tableWidth, height: 1 }} />
+            </div>
+            <div ref={scrollRef} onScroll={syncFromBottom} className="overflow-x-auto themed-scrollbar">
+              <table ref={tableRef} className="min-w-[1300px] text-[12.5px] border-collapse">
+                <thead>
+                  <tr>
+                    {columns.map((col, i) => (
+                      <th
+                        key={col.key}
+                        onClick={() => toggleSort(col.key)}
+                        className={`text-left px-2 py-2 text-inkfaint text-[11px] uppercase tracking-wide border-b border-borderstrong cursor-pointer hover:text-inksoft leading-tight whitespace-nowrap ${
+                          i === 0 ? "sticky left-0 bg-surface z-10" : ""
+                        }`}
+                      >
+                        {col.label} {sortKey === col.key ? (sortDir === 1 ? "↑" : "↓") : ""}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {filtered.map((p) => (
+                    <tr
+                      key={`${p.name}::${p.channel}`}
+                      onClick={() => setSelected(p)}
+                      className="cursor-pointer hover:bg-surface2 border-b border-border group"
+                    >
+                      {columns.map((col, i) => (
+                        <td
+                          key={col.key}
+                          className={`px-2 py-2 ${
+                            i === 0
+                              ? "sticky left-0 bg-surface group-hover:bg-surface2 whitespace-normal max-w-[200px] z-10"
+                              : "whitespace-nowrap"
+                          }`}
+                        >
+                          {renderCell(p, col)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
@@ -340,7 +402,8 @@ function ProductDrawer({ product, onClose }: { product: Product; onClose: () => 
         <div className="text-inkfaint text-[11.5px] mb-5 flex items-center gap-2 flex-wrap">
           <span>
             {product.category}
-            {product.sku && <> · SKU {product.sku}</>}
+            {product.subCategory && <> / {product.subCategory}</>}
+            {product.productCode && <> · Code {product.productCode}</>}
           </span>
           <ChannelBadge channel={product.channel} />
           {product.marketName && <span className="text-[11px] text-inkfaint">{product.marketName}</span>}

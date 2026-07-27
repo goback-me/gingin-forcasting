@@ -66,6 +66,7 @@ export async function importOrders(): Promise<ImportResult> {
         productName: i.productName,
         sku: i.sku,
         category: i.category,
+        subCategory: i.subCategory,
         quantity: i.quantity,
         weightG: i.weightG,
         itemCost: i.itemCost,

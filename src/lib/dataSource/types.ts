@@ -8,6 +8,7 @@ export interface RawOrderRow {
   productName: string;
   sku?: string;
   category?: string;
+  subCategory?: string;
   quantity: number;
   weightG?: number;
   itemCost?: number;

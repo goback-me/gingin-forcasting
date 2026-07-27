@@ -12,6 +12,7 @@ export const HEADER_ALIASES: Record<string, string[]> = {
   productName: ["Product Name", "product_name", "Product", "product"],
   sku: ["SKU", "sku", "GTIN/EAN"],
   category: ["Category", "category"],
+  subCategory: ["Subcategory", "Sub Category", "Sub-Category", "subcategory", "sub_category", "sub category"],
   quantity: ["Quantity", "quantity", "qty", "Qty"],
   weightG: ["Weight", "weight_g", "weight", "Weight (g)"],
   itemCost: ["Item Cost", "item_cost", "cost", "Cost", "Price"],

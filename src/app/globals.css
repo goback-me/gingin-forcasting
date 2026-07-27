@@ -23,3 +23,25 @@ body {
 .badge-declining { background: #F5E3DD; color: #732B1B; }
 .badge-high_growth { background: #F7EDD8; color: #7A5518; }
 .badge-low_data { background: #E9ECEF; color: #4A5568; }
+
+/* Themed horizontal scrollbar for wide tables (forecast table etc.) --
+   matches the surface/borderstrong/green palette instead of the browser default. */
+.themed-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #CBC8B8 #F5F4EF;
+}
+.themed-scrollbar::-webkit-scrollbar {
+  height: 10px;
+}
+.themed-scrollbar::-webkit-scrollbar-track {
+  background: #F5F4EF;
+  border-radius: 8px;
+}
+.themed-scrollbar::-webkit-scrollbar-thumb {
+  background: #CBC8B8;
+  border-radius: 8px;
+  border: 2px solid #F5F4EF;
+}
+.themed-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #3F6B4A;
+}
