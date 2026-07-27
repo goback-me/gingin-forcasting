@@ -11,3 +11,4 @@ data/*.xlsx
 data/*.xls
 data/*.csv
 !data/required_columns_template.csv
+*.zip
