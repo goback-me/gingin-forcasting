@@ -125,6 +125,20 @@ export async function computeMonthlyForecast(
     weeklyByKey.set(`${wp.name}::${wp.channel}`, wp);
   }
 
+  // Same batching fix as weeklyForecast.ts -- one query for every product's
+  // weightG/category/subCategory instead of one query per product inside
+  // the loop below.
+  const enrichmentRows = await prisma.orderItem.findMany({
+    select: { productName: true, weightG: true, category: true, subCategory: true },
+    orderBy: { id: "desc" },
+  });
+  const enrichmentByName = new Map<string, { weightG: number | null; category: string | null; subCategory: string | null }>();
+  for (const row of enrichmentRows) {
+    if (!enrichmentByName.has(row.productName)) {
+      enrichmentByName.set(row.productName, row);
+    }
+  }
+
   const allKeys = new Set<string>([...byKey.keys(), ...weeklyByKey.keys()]);
   const products: MonthlyProductForecast[] = [];
 
@@ -139,11 +153,7 @@ export async function computeMonthlyForecast(
       month && monthlyRows ? monthlyRows.find((r) => r.month === month)?.itemsSold ?? 0 : 0;
     const skuFor = monthlyRows?.find((r) => r.sku)?.sku ?? null;
 
-    const enrichment = await prisma.orderItem.findFirst({
-      where: { productName: name },
-      select: { weightG: true, category: true, subCategory: true },
-      orderBy: { id: "desc" },
-    });
+    const enrichment = enrichmentByName.get(name);
     const weightG = enrichment?.weightG ?? null;
     // Category/subcategory chain: real weekly source -> real enrichment ->
     // guessed placeholder (see categorize.ts) until the client's real

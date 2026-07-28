@@ -74,6 +74,23 @@ export async function computeWeeklyForecast(levers?: {
 }): Promise<WeeklyForecastResult> {
   const rows = await prisma.weeklySales.findMany();
 
+  // Batch-fetch category enrichment ONCE instead of one query per product
+  // (the old code did `await prisma.orderItem.findFirst()` inside the loop
+  // below -- with hundreds of products that was hundreds of sequential DB
+  // round-trips on every single page load). Ordered by id desc so the
+  // first row we see per productName is the same "latest" row the old
+  // per-product findFirst(orderBy: id desc) would have returned.
+  const enrichmentRows = await prisma.orderItem.findMany({
+    select: { productName: true, category: true },
+    orderBy: { id: "desc" },
+  });
+  const enrichmentByName = new Map<string, { category: string | null }>();
+  for (const row of enrichmentRows) {
+    if (!enrichmentByName.has(row.productName)) {
+      enrichmentByName.set(row.productName, { category: row.category });
+    }
+  }
+
   const buffer = levers?.bufferPct !== undefined ? levers.bufferPct / 100 : 0.1;
   const demandMult = 1 + (levers?.demandPct ?? 0) / 100;
   const promoMult = 1 + (levers?.promoPct ?? 0) / 100;
@@ -106,15 +123,11 @@ export async function computeWeeklyForecast(levers?: {
         return { weekStart: w, weekLabel: r.weekLabel, units: r.units, kg: r.weightKg };
       });
 
-    const enrichment = await prisma.orderItem.findFirst({
-      where: { productName: name },
-      select: { category: true },
-      orderBy: { id: "desc" },
-    });
+    const enrichment = enrichmentByName.get(name);
     // Null (not a sentinel string) so monthlyForecast's fallback chain
     // (weekly -> enrichment -> guessed) actually cascades. A hardcoded
     // "Uncategorised" here used to short-circuit that chain every time.
-    const category = (enrichment as any)?.category ?? null;
+    const category = enrichment?.category ?? null;
 
     const kgSeries = series.map((s) => s.kg);
     const unitsSeries = series.map((s) => s.units);
