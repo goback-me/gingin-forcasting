@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
-import fs from "fs";
 import { classifyChannel, Channel } from "../channel";
 import { assignDummyMarket } from "../dummyMarket";
+import { readSourceBuffer } from "./readSourceBuffer";
 
 export interface WeeklySalesRow {
   weekStart: string; // ISO date, Monday of that week
@@ -69,8 +69,8 @@ function isoWeekToMonday(year: number, week: number): string {
  *    followed by a blank row and a footer describing the applied filters -- both skipped
  *  - product rows are formatted "PLU - Product Name", e.g. "21 - GRASS FED BEEF MINCE..."
  */
-export function readWeeklySalesFile(filePath: string): WeeklySalesRow[] {
-  const buf = fs.readFileSync(filePath);
+export async function readWeeklySalesFile(ref: string): Promise<WeeklySalesRow[]> {
+  const buf = await readSourceBuffer(ref);
   const workbook = XLSX.read(buf, { type: "buffer" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });

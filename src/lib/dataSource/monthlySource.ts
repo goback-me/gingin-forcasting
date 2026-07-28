@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
-import fs from "fs";
 import { classifyChannel, Channel } from "../channel";
 import { assignDummyMarket } from "../dummyMarket";
+import { readSourceBuffer } from "./readSourceBuffer";
 
 export interface MonthlySalesRow {
   month: string; // "YYYY-MM"
@@ -76,8 +76,8 @@ function parseSheetName(name: string, assumedYear: number): { month: string; mon
   return { month, monthLabel, isPartial };
 }
 
-export function readMonthlySalesFile(filePath: string, assumedYear: number = new Date().getFullYear()): MonthlySalesRow[] {
-  const buf = fs.readFileSync(filePath);
+export async function readMonthlySalesFile(ref: string, assumedYear: number = new Date().getFullYear()): Promise<MonthlySalesRow[]> {
+  const buf = await readSourceBuffer(ref);
   const workbook = XLSX.read(buf, { type: "buffer" });
 
   const rows: MonthlySalesRow[] = [];

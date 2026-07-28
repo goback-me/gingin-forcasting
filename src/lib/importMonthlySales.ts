@@ -8,21 +8,24 @@ export interface MonthlyImportResult {
   message?: string;
 }
 
-const SOURCE_REF = process.env.MONTHLY_SOURCE_REF || "./data/quarter-sales.xls";
+const DEFAULT_SOURCE_REF = process.env.MONTHLY_SOURCE_REF || "./data/quarter-sales.xls";
 
 /**
  * Imports a monthly sales report (one sheet per month) into MonthlySales.
  * Safe to re-run -- each month's rows are fully replaced, not appended, so
  * re-importing an updated file just overwrites the numbers for whichever
  * months are in it.
+ *
+ * `sourceRef` overrides the default env-configured source -- used by the
+ * upload flow and works with a live URL too.
  */
-export async function importMonthlySales(): Promise<MonthlyImportResult> {
+export async function importMonthlySales(sourceRef: string = DEFAULT_SOURCE_REF): Promise<MonthlyImportResult> {
   let rows: MonthlySalesRow[];
   try {
-    rows = readMonthlySalesFile(SOURCE_REF);
+    rows = await readMonthlySalesFile(sourceRef);
   } catch (err: any) {
     await prisma.importLog.create({
-      data: { sourceType: "monthly_xls", sourceRef: SOURCE_REF, rowCount: 0, status: "failed", message: err.message },
+      data: { sourceType: "monthly_xls", sourceRef, rowCount: 0, status: "failed", message: err.message },
     });
     return { status: "failed", rowCount: 0, monthsImported: [], message: err.message };
   }
@@ -64,7 +67,7 @@ export async function importMonthlySales(): Promise<MonthlyImportResult> {
   }
 
   await prisma.importLog.create({
-    data: { sourceType: "monthly_xls", sourceRef: SOURCE_REF, rowCount: rows.length, status: "success" },
+    data: { sourceType: "monthly_xls", sourceRef, rowCount: rows.length, status: "success" },
   });
 
   return { status: "success", rowCount: rows.length, monthsImported: months };

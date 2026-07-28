@@ -8,16 +8,23 @@ export interface WeeklyImportResult {
   message?: string;
 }
 
-const SOURCE_REF = process.env.WEEKLY_SOURCE_REF || "./data/weekly-sales.xlsx";
+const DEFAULT_SOURCE_REF = process.env.WEEKLY_SOURCE_REF || "./data/weekly-sales.xlsx";
 
-/** Safe to re-run -- each week's rows are fully replaced, not appended. */
-export async function importWeeklySales(): Promise<WeeklyImportResult> {
+/**
+ * Safe to re-run -- each week's rows are fully replaced, not appended.
+ *
+ * `sourceRef` overrides the default env-configured source -- used by the
+ * upload flow (a temp path for the file someone just uploaded) and will
+ * also work with a live URL once one exists, since readWeeklySalesFile
+ * fetches http(s) refs the same way it reads local paths.
+ */
+export async function importWeeklySales(sourceRef: string = DEFAULT_SOURCE_REF): Promise<WeeklyImportResult> {
   let rows: WeeklySalesRow[];
   try {
-    rows = readWeeklySalesFile(SOURCE_REF);
+    rows = await readWeeklySalesFile(sourceRef);
   } catch (err: any) {
     await prisma.importLog.create({
-      data: { sourceType: "weekly_xlsx", sourceRef: SOURCE_REF, rowCount: 0, status: "failed", message: err.message },
+      data: { sourceType: "weekly_xlsx", sourceRef, rowCount: 0, status: "failed", message: err.message },
     });
     return { status: "failed", rowCount: 0, weeksImported: [], message: err.message };
   }
@@ -55,7 +62,7 @@ export async function importWeeklySales(): Promise<WeeklyImportResult> {
   }
 
   await prisma.importLog.create({
-    data: { sourceType: "weekly_xlsx", sourceRef: SOURCE_REF, rowCount: rows.length, status: "success" },
+    data: { sourceType: "weekly_xlsx", sourceRef, rowCount: rows.length, status: "success" },
   });
 
   return { status: "success", rowCount: rows.length, weeksImported: weeks.sort() };
