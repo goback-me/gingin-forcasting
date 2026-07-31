@@ -10,6 +10,7 @@ const ITEMS = [
   { href: "/alerts", label: "Alerts" },
   { href: "/history", label: "Plan history" },
   { href: "/upload", label: "Upload data" },
+  { href: "/reports", label: "Custom Report" },
 ];
 
 export default function Sidebar() {
