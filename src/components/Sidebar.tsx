@@ -9,6 +9,8 @@ const ITEMS = [
   { href: "/scenario", label: "Scenario planning" },
   { href: "/alerts", label: "Alerts" },
   { href: "/history", label: "Plan history" },
+  { href: "/upload", label: "Upload data" },
+  { href: "/reports", label: "Custom reports" },
 ];
 
 export default function Sidebar() {

@@ -164,3 +164,19 @@ model ImportLog {
   message    String?
   importedAt DateTime @default(now())
 }
+
+// A saved custom report -- which columns to show, what filters/sort to
+// apply, built via the /reports page's report builder. Columns/filters are
+// stored as JSON strings (SQLite/Postgres-portable, no need for a rigid
+// schema per filter type since the builder's filter set may grow over time).
+model SavedView {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  columns   String // JSON string[] of column keys, in the order to display them
+  filters   String // JSON blob: { category, channel, marketName, status, search }
+  sortKey   String?
+  sortDir   Int      @default(-1) // 1 = ascending, -1 = descending
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
