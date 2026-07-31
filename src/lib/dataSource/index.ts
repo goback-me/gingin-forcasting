@@ -10,8 +10,8 @@ import { TabularOrderSource } from "./tabularSource";
  *   SOURCE_REF=./data/orders-with-dates.xlsx        (local file, today)
  *   SOURCE_REF=https://docs.google.com/.../pub?output=csv   (Google Sheets, later)
  */
-export function getOrderSource(): OrderSource {
-  const ref = process.env.SOURCE_REF || "./data/orders-with-dates.xlsx";
+export function getOrderSource(refOverride?: string): OrderSource {
+  const ref = refOverride ?? process.env.SOURCE_REF ?? "./data/orders-with-dates.xlsx";
   return new TabularOrderSource(ref);
 }
 

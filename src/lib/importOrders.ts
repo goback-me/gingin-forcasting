@@ -14,9 +14,12 @@ export interface ImportResult {
  * then replaces its OrderItem lines. Safe to re-run -- re-importing the
  * same source just overwrites each order's line items rather than
  * duplicating them.
+ *
+ * `sourceRef` overrides the default env-configured SOURCE_REF -- used by
+ * the upload flow (a temp path for the file someone just uploaded).
  */
-export async function importOrders(): Promise<ImportResult> {
-  const source = getOrderSource();
+export async function importOrders(sourceRef?: string): Promise<ImportResult> {
+  const source = getOrderSource(sourceRef);
   let rows: RawOrderRow[];
 
   try {
