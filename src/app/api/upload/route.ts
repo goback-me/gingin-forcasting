@@ -4,6 +4,7 @@ import path from "path";
 import { importWeeklySales } from "@/lib/importWeeklySales";
 import { importMonthlySales } from "@/lib/importMonthlySales";
 import { importOrders } from "@/lib/importOrders";
+import { importProductCatalog } from "@/lib/importProductCatalog";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  *
  * POST multipart/form-data:
  *   file: the .xlsx/.xls/.csv file
- *   type: "weekly" | "monthly" | "orders"
+ *   type: "weekly" | "monthly" | "orders" | "catalog"
  */
 export async function POST(req: NextRequest) {
   const form = await req.formData();
@@ -26,9 +27,9 @@ export async function POST(req: NextRequest) {
   if (!(file instanceof File)) {
     return NextResponse.json({ status: "failed", message: "No file was uploaded." }, { status: 400 });
   }
-  if (type !== "weekly" && type !== "monthly" && type !== "orders") {
+  if (type !== "weekly" && type !== "monthly" && type !== "orders" && type !== "catalog") {
     return NextResponse.json(
-      { status: "failed", message: `Unknown upload type "${type}". Must be weekly, monthly, or orders.` },
+      { status: "failed", message: `Unknown upload type "${type}". Must be weekly, monthly, orders, or catalog.` },
       { status: 400 }
     );
   }
@@ -38,6 +39,8 @@ export async function POST(req: NextRequest) {
       ? process.env.WEEKLY_SOURCE_REF || "./data/weekly-sales.xlsx"
       : type === "monthly"
       ? process.env.MONTHLY_SOURCE_REF || "./data/quarter-sales.xls"
+      : type === "catalog"
+      ? process.env.CATALOG_SOURCE_REF || "./data/product-catalog.xlsx"
       : process.env.SOURCE_REF || "./data/orders-with-dates.xlsx";
 
   // Reject an http(s) SOURCE_REF here -- uploading a file only makes sense
@@ -66,6 +69,8 @@ export async function POST(req: NextRequest) {
       ? await importWeeklySales(targetPath)
       : type === "monthly"
       ? await importMonthlySales(targetPath)
+      : type === "catalog"
+      ? await importProductCatalog(targetPath)
       : await importOrders(targetPath);
 
   return NextResponse.json(result, { status: result.status === "failed" ? 500 : 200 });

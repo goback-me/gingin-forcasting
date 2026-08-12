@@ -180,3 +180,29 @@ model SavedView {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// The master product catalog (e.g. exported from the meat-processing/POS
+// system) -- one row per product code/variant, NOT sales data. Used purely
+// to enrich category/subCategory onto real sales rows, matched by product
+// NAME against this table's `description` column (Product Code here uses
+// a different scheme than the PLU/SKU used elsewhere, so name matching is
+// the safe join until that's confirmed).
+model ProductCatalog {
+  id              String   @id @default(cuid())
+  productCode     String   @unique // e.g. "1.FK" -- the specific variant/pack code from the source system
+  parentCode      String? // e.g. "1" -- groups variants of the same underlying product
+  description     String // matched against sales data by name (case-insensitive)
+  generalStatement String?
+  // Category: the real CATEGORY column, falling back to Product Location
+  // ONLY when CATEGORY is blank (client instruction -- CATEGORY is blank
+  // for every row in the sample export seen so far).
+  category        String?
+  // Subcategory: the real SUB CATEGORY column only -- left blank if blank,
+  // no fallback to any other column.
+  subCategory     String?
+  productLocation String?
+  importedAt      DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([description])
+}

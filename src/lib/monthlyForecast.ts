@@ -1,6 +1,7 @@
 import { prisma } from "./db";
 import { computeWeeklyForecast, WeeklyProductForecast } from "./weeklyForecast";
 import { guessCategory } from "./categorize";
+import { normalizeCatalogName } from "./dataSource/catalogSource";
 
 type MonthlyRow = {
   month: string;
@@ -139,6 +140,21 @@ export async function computeMonthlyForecast(
     }
   }
 
+  // Real product catalog (master data from the meat-processing system),
+  // matched by name since Product Code there uses a different scheme than
+  // the PLU/SKU used elsewhere. One query for the whole table -- same
+  // batching approach as the enrichment fetch above, not per-product.
+  const catalogRows = await prisma.productCatalog.findMany({
+    select: { description: true, category: true, subCategory: true },
+  });
+  const catalogByName = new Map<string, { category: string | null; subCategory: string | null }>();
+  for (const row of catalogRows) {
+    const key = normalizeCatalogName(row.description);
+    if (!catalogByName.has(key)) {
+      catalogByName.set(key, { category: row.category, subCategory: row.subCategory });
+    }
+  }
+
   const allKeys = new Set<string>([...byKey.keys(), ...weeklyByKey.keys()]);
   const products: MonthlyProductForecast[] = [];
 
@@ -155,12 +171,13 @@ export async function computeMonthlyForecast(
 
     const enrichment = enrichmentByName.get(name);
     const weightG = enrichment?.weightG ?? null;
+    const catalogMatch = catalogByName.get(normalizeCatalogName(name));
     // Category/subcategory chain: real weekly source -> real enrichment ->
-    // guessed placeholder (see categorize.ts) until the client's real
-    // category file arrives.
+    // real product catalog (matched by name) -> guessed placeholder (see
+    // categorize.ts) for anything not in the catalog yet.
     const guessed = guessCategory(name);
-    const category = weekly?.category ?? enrichment?.category ?? guessed.category;
-    const subCategory = enrichment?.subCategory ?? guessed.subCategory;
+    const category = weekly?.category ?? enrichment?.category ?? catalogMatch?.category ?? guessed.category;
+    const subCategory = enrichment?.subCategory ?? catalogMatch?.subCategory ?? guessed.subCategory;
     // Product Code: Online items are identified by SKU; Market items are
     // identified by PLU (the weekly file's own product code) -- fall back
     // to whichever one actually exists for this product.
