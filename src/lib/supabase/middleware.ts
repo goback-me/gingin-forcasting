@@ -1,5 +1,12 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+
+/**
+ * Runs on every request (see src/middleware.ts's matcher -- covers every
+ * page AND every /api/* route, not just navigation). No session -> bounce
+ * to /login, preserving where they were headed so they land back there
+ * after signing in. Already signed in and somehow on /login -> bounce
+ * home instead of showing the form again.
  */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } });
