@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { readSourceBuffer } from "./readSourceBuffer";
+import { fetchPrivateSheetRows } from "./googleSheetsClient";
 
 export interface CatalogRow {
   productCode: string;
@@ -26,12 +27,9 @@ export function normalizeCatalogName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-export async function readProductCatalogFile(ref: string): Promise<CatalogRow[]> {
-  const buf = await readSourceBuffer(ref);
-  const workbook = XLSX.read(buf, { type: "buffer" });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
-
+// Shared by both read paths below -- same column mapping regardless of
+// whether the rows came from a parsed xlsx/csv file or the Sheets API.
+function mapCatalogRows(rows: Record<string, any>[]): CatalogRow[] {
   const out: CatalogRow[] = [];
   for (const row of rows) {
     const productCode = str(row["Product Code"]);
@@ -56,4 +54,33 @@ export async function readProductCatalogFile(ref: string): Promise<CatalogRow[]>
     });
   }
   return out;
+}
+
+/**
+ * Reads the product catalog either from:
+ *  - a PRIVATE Google Sheet, authenticated via a service account, when
+ *    CATALOG_SHEET_ID is set (the `ref` argument is ignored in this mode --
+ *    CATALOG_SHEET_ID / CATALOG_SHEET_GID are the source of truth), or
+ *  - a local file / public URL, same as before, otherwise.
+ */
+export async function readProductCatalogFile(ref: string): Promise<CatalogRow[]> {
+  const sheetId = process.env.CATALOG_SHEET_ID;
+  if (sheetId) {
+    const gid = process.env.CATALOG_SHEET_GID || "0";
+    const grid = await fetchPrivateSheetRows(sheetId, gid);
+    if (grid.length === 0) return [];
+    const [headerRow, ...dataRows] = grid;
+    const objects: Record<string, any>[] = dataRows.map((r) => {
+      const obj: Record<string, any> = {};
+      headerRow.forEach((h: string, i: number) => (obj[h] = r[i] ?? null));
+      return obj;
+    });
+    return mapCatalogRows(objects);
+  }
+
+  const buf = await readSourceBuffer(ref);
+  const workbook = XLSX.read(buf, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
+  return mapCatalogRows(rows);
 }

@@ -24,12 +24,19 @@ const DEFAULT_SOURCE_REF = process.env.CATALOG_SOURCE_REF || "./data/product-cat
  * local paths.
  */
 export async function importProductCatalog(sourceRef: string = DEFAULT_SOURCE_REF): Promise<CatalogImportResult> {
+  // When CATALOG_SHEET_ID is set, readProductCatalogFile ignores `sourceRef`
+  // entirely (see catalogSource.ts) -- log something meaningful instead of
+  // whatever placeholder ended up in sourceRef.
+  const loggedRef = process.env.CATALOG_SHEET_ID
+    ? `google-sheet:${process.env.CATALOG_SHEET_ID}#${process.env.CATALOG_SHEET_GID || "0"}`
+    : sourceRef;
+
   let rows: CatalogRow[];
   try {
     rows = await readProductCatalogFile(sourceRef);
   } catch (err: any) {
     await prisma.importLog.create({
-      data: { sourceType: "product_catalog", sourceRef, rowCount: 0, status: "failed", message: err.message },
+      data: { sourceType: "product_catalog", sourceRef: loggedRef, rowCount: 0, status: "failed", message: err.message },
     });
     return { status: "failed", rowCount: 0, message: err.message };
   }
@@ -50,7 +57,7 @@ export async function importProductCatalog(sourceRef: string = DEFAULT_SOURCE_RE
   }
 
   await prisma.importLog.create({
-    data: { sourceType: "product_catalog", sourceRef, rowCount: rows.length, status: "success" },
+    data: { sourceType: "product_catalog", sourceRef: loggedRef, rowCount: rows.length, status: "success" },
   });
 
   return { status: "success", rowCount: rows.length };
