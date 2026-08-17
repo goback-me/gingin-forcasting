@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@prisma/client": "^5.19.0",
+    "@supabase/ssr": "^0.5.1",
+    "@supabase/supabase-js": "^2.45.4",
     "google-auth-library": "^9.14.1",
     "next": "14.2.35",
     "papaparse": "^5.4.1",

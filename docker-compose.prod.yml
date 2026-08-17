@@ -18,6 +18,11 @@ services:
     build:
       context: .
       target: runner
+      args:
+        # NEXT_PUBLIC_* vars must be present at BUILD time (see Dockerfile) --
+        # this is what actually gets them there, sourced from .env.
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     container_name: gingin-forecast-app
     restart: unless-stopped
     depends_on:
@@ -26,6 +31,10 @@ services:
       DATABASE_URL: postgresql://gingin:${DB_PASSWORD}@db:5432/gingin_forecast
       SOURCE_REF: ${SOURCE_REF:-./data/orders-with-dates.xlsx}
       MONTHLY_SOURCE_REF: ${MONTHLY_SOURCE_REF:-./data/quarter-sales.xls}
+      # Also passed at runtime so any server-side Supabase client (not just
+      # the build-time-baked browser bundle) has these too.
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     volumes:
       - ./data:/app/data
     networks:
@@ -37,17 +46,22 @@ services:
       - "traefik.http.routers.gingin-forecast.tls=true"
       - "traefik.http.routers.gingin-forecast.tls.certresolver=mytlschallenge"
       - "traefik.http.services.gingin-forecast.loadbalancer.server.port=3000"
+      # No Traefik-level auth middleware anymore -- login is handled inside
+      # the app now via Supabase (see src/middleware.ts). Real user
+      # accounts, created directly in the Supabase dashboard, protect
+      # every page and every /api/* route.
 
-  # One-off tasks (migrations, re-imports) run through the full `builder`
-  # stage, which still has the Prisma CLI and dev tooling -- the `app`
-  # service above is deliberately the slim runtime-only image and doesn't
-  # carry those. Usage:
+  # One-off tasks (migrations, re-imports) run through `toolchain`, which
+  # has the Prisma CLI and generated client but skips the Next.js build
+  # entirely -- previously this targeted `builder`, which meant every
+  # migration/import also rebuilt the full production app for no reason.
+  # Usage:
   #   docker compose -f docker-compose.prod.yml run --rm migrate npx prisma migrate deploy
   #   docker compose -f docker-compose.prod.yml run --rm migrate npm run import
   migrate:
     build:
       context: .
-      target: builder
+      target: toolchain
     environment:
       DATABASE_URL: postgresql://gingin:${DB_PASSWORD}@db:5432/gingin_forecast
       SOURCE_REF: ${SOURCE_REF:-./data/orders-with-dates.xlsx}

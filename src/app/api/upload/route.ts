@@ -16,16 +16,9 @@ const TYPE_LABELS: Record<DetectedFileType, string> = {
   catalog: "Product catalog",
 };
 
-/**
- * Lets someone upload ANY of the four data files without knowing or
- * picking which kind it is -- the file's own column headers say what it
- * is (see detectFileType.ts). Saves it to the same path the scheduled
- * import already reads from, runs the matching import immediately, and
- * reports back what it detected plus the result.
- *
- * POST multipart/form-data:
- *   file: the .xlsx/.xls/.csv file
- */
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25MB -- generous for these files (biggest seen so far is a few MB), stops disk-filling abuse
+const ALLOWED_EXTENSIONS = [".xlsx", ".xls", ".csv"];
+
 export async function POST(req: NextRequest) {
   const form = await req.formData();
   const file = form.get("file");
@@ -34,8 +27,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "failed", message: "No file was uploaded." }, { status: 400 });
   }
 
-  const buf = Buffer.from(await file.arrayBuffer());
-  const type = detectFileType(buf);
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return NextResponse.json(
+      { status: "failed", message: `That file is too large (${Math.round(file.size / 1024 / 1024)}MB). Max is ${MAX_UPLOAD_BYTES / 1024 / 1024}MB.` },
+      { status: 413 }
+    );
+  }
+
+  const ext = path.extname(file.name || "").toLowerCase();
+  if (!ALLOWED_EXTENSIONS.includes(ext)) {
+    return NextResponse.json(
+      { status: "failed", message: `"${ext || "(no extension)"}" isn't a supported file type. Use .xlsx, .xls, or .csv.` },
+      { status: 400 }
+    );
+  }
+
+  let buf: Buffer;
+  let type: DetectedFileType | null;
+  try {
+    buf = Buffer.from(await file.arrayBuffer());
+    type = detectFileType(buf);
+  } catch {
+    // Don't leak parser internals for a malformed/corrupt/malicious file --
+    // just say it couldn't be read.
+    return NextResponse.json({ status: "failed", message: "Couldn't read that file -- it may be corrupted or not a real spreadsheet." }, { status: 400 });
+  }
 
   if (!type) {
     return NextResponse.json(
@@ -68,9 +84,6 @@ export async function POST(req: NextRequest) {
       ? process.env.CATALOG_SOURCE_REF || "./data/product-catalog.xlsx"
       : process.env.SOURCE_REF || "./data/orders-with-dates.xlsx";
 
-  // Reject an http(s) SOURCE_REF here -- uploading a file only makes sense
-  // when the configured source is a local path. If it's already a live
-  // URL, uploads should go through whatever feeds that URL instead.
   if (/^https?:\/\//i.test(targetPath)) {
     return NextResponse.json(
       {
@@ -86,17 +99,24 @@ export async function POST(req: NextRequest) {
     fs.mkdirSync(path.dirname(targetPath), { recursive: true });
     fs.writeFileSync(targetPath, buf);
   } catch (err: any) {
-    return NextResponse.json({ status: "failed", detectedType: type, message: `Couldn't save the upload: ${err.message}` }, { status: 500 });
+    return NextResponse.json({ status: "failed", detectedType: type, message: "Couldn't save the upload -- check server permissions on the data folder." }, { status: 500 });
   }
 
-  const result =
-    type === "weekly"
-      ? await importWeeklySales(targetPath)
-      : type === "monthly"
-      ? await importMonthlySales(targetPath)
-      : type === "catalog"
-      ? await importProductCatalog(targetPath)
-      : await importOrders(targetPath);
+  try {
+    const result =
+      type === "weekly"
+        ? await importWeeklySales(targetPath)
+        : type === "monthly"
+        ? await importMonthlySales(targetPath)
+        : type === "catalog"
+        ? await importProductCatalog(targetPath)
+        : await importOrders(targetPath);
 
-  return NextResponse.json({ ...result, detectedType: type, detectedLabel: TYPE_LABELS[type] }, { status: result.status === "failed" ? 500 : 200 });
+    return NextResponse.json({ ...result, detectedType: type, detectedLabel: TYPE_LABELS[type] }, { status: result.status === "failed" ? 500 : 200 });
+  } catch {
+    return NextResponse.json(
+      { status: "failed", detectedType: type, message: "The file was detected and saved, but importing it failed -- check it matches the expected column layout." },
+      { status: 500 }
+    );
+  }
 }

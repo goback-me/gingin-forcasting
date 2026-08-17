@@ -1,17 +1,3 @@
-#!/bin/bash
-# One-click deploy. Pulls latest code, builds fresh images, applies
-# migrations, imports data, and starts the app -- with explicit error
-# handling at every stage so a failure stops the script with a clear
-# message instead of silently limping forward.
-#
-# Usage: bash deploy.sh
-#
-# Uses `prisma migrate deploy`, not `migrate dev` -- deploy only applies
-# migration files that are already committed to the repo. It never
-# generates new ones, so this never needs the VPS to push back to git.
-# New migrations only ever get created locally (or via one intentional
-# `migrate dev` run) and pushed from a machine that has push access.
-
 set -uo pipefail
 COMPOSE="docker compose -f docker-compose.prod.yml"
 FAILED=0
@@ -47,8 +33,11 @@ if [ ! -f .env ]; then
   exit 0
 fi
 
-step "Building images (no cache)"
-run $COMPOSE build --no-cache
+step "Building the migrate/toolchain image (no cache)"
+# Scoped to just `migrate` -- it no longer needs a Next.js build at all
+# (see Dockerfile's `toolchain` stage), and building `app` here too was
+# wasted work anyway, since it gets rebuilt again below regardless.
+run $COMPOSE build --no-cache migrate
 
 step "Starting database"
 run $COMPOSE up -d db
